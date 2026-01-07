@@ -1,0 +1,53 @@
+version: '3.8'
+
+services:
+  # 后端服务
+  backend:
+    build:
+      context: ./backend
+    container_name: sporttools-backend
+    ports:
+      - "8000:8000"
+    environment:
+      - PYTHONUNBUFFERED=1
+    volumes:
+      - ./backend:/app
+      - ./backend/sports_teaching.db:/app/sports_teaching.db
+    networks:
+      - sporttools-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import httpx; r = httpx.get('http://localhost:8000/health'); exit(0) if r.status_code == 200 else exit(1)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # 前端服务
+  frontend:
+    build:
+      context: ./frontend
+    container_name: sporttools-frontend
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    networks:
+      - sporttools-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+# 网络配置
+networks:
+  sporttools-network:
+    driver: bridge
+    name: sporttools-network
+
+# 数据卷
+volumes:
+  # 可以在这里定义共享数据卷，如数据库数据
+  # db-data:
+  #   driver: local
