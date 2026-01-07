@@ -45,9 +45,3 @@ networks:
   sporttools-network:
     driver: bridge
     name: sporttools-network
-
-# 数据卷
-volumes:
-  # 可以在这里定义共享数据卷，如数据库数据
-  # db-data:
-  #   driver: local
