@@ -7,7 +7,7 @@ services:
       context: ./backend
     container_name: sporttools-backend
     ports:
-      - "5666:8000"
+      - "8002:8000"
     environment:
       - PYTHONUNBUFFERED=1
     volumes:
