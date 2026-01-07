@@ -1,6 +1,23 @@
 version: '3.8'
 
 services:
+  # Redis服务（用于缓存和会话管理）
+  redis:
+    image: redis:7-alpine
+    container_name: sporttools-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - sporttools-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
   # 后端服务
   backend:
     build:
@@ -13,9 +30,13 @@ services:
     volumes:
       - ./backend:/app
       - ./backend/sports_teaching.db:/app/sports_teaching.db
+      - ./backend/uploads:/app/uploads
+      - ./backend/logs:/app/logs
     networks:
       - sporttools-network
     restart: unless-stopped
+    depends_on:
+      - redis
     healthcheck:
       test: ["CMD", "python", "-c", "import httpx; r = httpx.get('http://localhost:8000/health'); exit(0) if r.status_code == 200 else exit(1)"]
       interval: 30s
@@ -39,6 +60,10 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
+
+# 数据卷配置（用于持久化）
+volumes:
+  redis_data:  # Redis数据持久化
 
 # 网络配置
 networks:
