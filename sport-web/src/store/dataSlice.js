@@ -1,4 +1,181 @@
-import { createSlice } from '@reduxjs/toolkit'
+import { createSlice, createAsyncThunk } from '@reduxjs/toolkit'
+import apiClient from '../utils/apiClient'
+
+// 标准化班级数据，统一前端使用的字段
+const normalizeClass = (cls = {}) => {
+  const normalizedStatus = typeof cls.status === 'object' && cls.status?.value
+    ? cls.status.value
+    : cls.status
+
+  return {
+    ...cls,
+    className: cls.class_name ?? cls.className ?? '',
+    studentCount: cls.current_student_count ?? cls.studentCount ?? 0,
+    maxStudentCount: cls.max_student_count ?? cls.maxStudentCount ?? 60,
+    coach: cls.class_teacher_name ?? cls.coach ?? '',
+    physicalTeacher: cls.assistant_teacher_name ?? cls.physicalTeacher ?? '',
+    status: normalizedStatus ?? 'active'
+  }
+}
+
+// 从出生日期计算年龄
+const calculateAge = (birthDate) => {
+  if (!birthDate) return null
+  const birth = new Date(birthDate)
+  const today = new Date()
+  let age = today.getFullYear() - birth.getFullYear()
+  const monthDiff = today.getMonth() - birth.getMonth()
+  if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) {
+    age--
+  }
+  return age
+}
+
+// 标准化学生数据，统一前端使用的字段
+const normalizeStudent = (student = {}) => {
+  const birthDate = student.birth_date || student.birthDate
+  return {
+    ...student,
+    name: student.real_name || student.name,
+    birthDate: birthDate,
+    idCard: student.id_card || student.idCard,
+    studentId: student.student_no || student.studentId,
+    educationId: student.education_id || student.educationId,
+    phone: student.phone,
+    address: student.address,
+    // 从出生日期自动计算年龄
+    age: calculateAge(birthDate),
+    // 映射年级和班级字段
+    grade: student.current_grade || student.grade,
+    className: student.current_class_name || student.className,
+    classId: student.current_class_id || student.classId || student.class_id
+  }
+}
+
+// 获取学生列表
+const fetchStudents = createAsyncThunk(
+  'data/fetchStudents',
+  async (params, { rejectWithValue }) => {
+    try {
+      const response = await apiClient.get('/students', { params })
+      return response
+    } catch (error) {
+      return rejectWithValue(error.response?.data?.detail || '获取学生列表失败')
+    }
+  }
+)
+
+// 创建学生
+const createStudentAPI = createAsyncThunk(
+  'data/createStudentAPI',
+  async (studentData, { rejectWithValue }) => {
+    try {
+      const response = await apiClient.post('/students', studentData)
+      return response
+    } catch (error) {
+      return rejectWithValue(error.response?.data?.detail || '创建学生失败')
+    }
+  }
+)
+
+// 更新学生
+const updateStudentAPI = createAsyncThunk(
+  'data/updateStudentAPI',
+  async ({ id, studentData }, { rejectWithValue }) => {
+    try {
+      const response = await apiClient.put(`/students/${id}`, studentData)
+      return response
+    } catch (error) {
+      return rejectWithValue(error.response?.data?.detail || '更新学生失败')
+    }
+  }
+)
+
+// 删除学生
+const deleteStudentAPI = createAsyncThunk(
+  'data/deleteStudentAPI',
+  async (id, { rejectWithValue }) => {
+    try {
+      await apiClient.delete(`/students/${id}`)
+      return id
+    } catch (error) {
+      return rejectWithValue(error.response?.data?.detail || '删除学生失败')
+    }
+  }
+)
+
+// 获取班级列表
+const fetchClasses = createAsyncThunk(
+  'data/fetchClasses',
+  async (params, { rejectWithValue }) => {
+    try {
+      const response = await apiClient.get('/classes', { params })
+      return response
+    } catch (error) {
+      return rejectWithValue(error.response?.data?.detail || '获取班级列表失败')
+    }
+  }
+)
+
+// 创建班级
+const createClassAPI = createAsyncThunk(
+  'data/createClassAPI',
+  async (classData, { rejectWithValue }) => {
+    try {
+      const response = await apiClient.post('/classes', classData)
+      return response
+    } catch (error) {
+      return rejectWithValue(error.response?.data?.detail || '创建班级失败')
+    }
+  }
+)
+
+// 更新班级
+const updateClassAPI = createAsyncThunk(
+  'data/updateClassAPI',
+  async ({ id, classData }, { rejectWithValue }) => {
+    try {
+      const response = await apiClient.put(`/classes/${id}`, classData)
+      return response
+    } catch (error) {
+      return rejectWithValue(error.response?.data?.detail || '更新班级失败')
+    }
+  }
+)
+
+// 删除班级
+const deleteClassAPI = createAsyncThunk(
+  'data/deleteClassAPI',
+  async ({ id, force = false }, { rejectWithValue }) => {
+    try {
+      await apiClient.delete(`/classes/${id}?force=${force}`)
+      return id
+    } catch (error) {
+      return rejectWithValue(error.response?.data?.detail || '删除班级失败')
+    }
+  }
+)
+
+// 将学生分配到班级
+const assignStudentToClassAPI = createAsyncThunk(
+  'data/assignStudentToClassAPI',
+  async ({ studentId, classId, academicYear, joinDate }, { rejectWithValue }) => {
+    try {
+      // 构建查询参数
+      const params = new URLSearchParams({ 
+        class_id: classId, 
+        academic_year: academicYear 
+      })
+      if (joinDate) {
+        params.append('join_date', joinDate)
+      }
+      const response = await apiClient.post(`/students/${studentId}/classes?${params.toString()}`)
+      return response
+    } catch (error) {
+      return rejectWithValue(error.response?.data?.detail || '分配学生到班级失败')
+    }
+  }
+)
 
 // 初始化状态
 const initialState = {
@@ -24,40 +201,10 @@ const initialState = {
     phone: '',
     email: ''
   },
-  classes: [
-    { id: 1, grade: '一年级', className: '主校区1班', coach: '张三', physicalTeacher: '李四', studentCount: 45, status: 'active', schoolYearId: 1 },
-    { id: 2, grade: '二年级', className: '主校区2班', coach: '张二', physicalTeacher: '李无', studentCount: 42, status: 'active', schoolYearId: 1 }
-  ],
-  students: [
-    { id: 1, name: '学生1', gender: 'male', age: 18, classId: 1, className: '主校区1班', phone: '13800138001', email: 'student1@example.com', address: '北京市朝阳区', status: '在学', studentNo: '20240701001', idCard: '', studentId: 'G110106201906103314', educationId: '25083338', birthDate: '', grade: '一年级', schoolYearId: 1 },
-    { id: 2, name: '学生2', gender: 'female', age: 17, classId: 2, className: '主校区2班', phone: '13800138002', email: 'student2@example.com', address: '上海市浦东新区', status: '休学', studentNo: '20240701002', idCard: '', studentId: 'G110106201906103315', educationId: '25083339', birthDate: '', grade: '二年级', schoolYearId: 1 },
-    { id: 3, name: '学生3', gender: 'male', age: 19, classId: 1, className: '主校区1班', phone: '13800138003', email: 'student3@example.com', address: '广州市天河区', status: '在学', studentNo: '20240701003', idCard: '', studentId: 'G110106201906103316', educationId: '25083340', birthDate: '', grade: '一年级', schoolYearId: 1 }
-  ],
-  studentHistories: [
-    {
-      id: 1,
-      studentId: 1,
-      educationId: '25083338',
-      name: '学生1',
-      schoolYearId: 2,
-      schoolYearName: '2024-2025学年',
-      grade: '一年级',
-      className: '主校区1班',
-      gender: 'male',
-      age: 17,
-      status: '在学',
-      finalScore: 85,
-      gradeLevel: '良好',
-      testRecords: [1, 2] // 关联的测试记录ID
-    }
-  ],
-  users: [
-    { id: 1, username: 'admin', name: '管理员', email: 'admin@example.com', phone: '13800138000', role: 'admin', status: 'active' },
-    { id: 2, username: 'teacher1', name: '张三', email: 'teacher1@example.com', phone: '13800138001', role: 'classTeacher', status: 'active' },
-    { id: 3, username: 'peTeacher1', name: '李四', email: 'peTeacher1@example.com', phone: '13800138002', role: 'peTeacher', status: 'active' },
-    { id: 4, username: 'coach1', name: '王五', email: 'coach1@example.com', phone: '13800138003', role: 'coach', status: 'active' },
-    { id: 5, username: 'other1', name: '赵六', email: 'other1@example.com', phone: '13800138004', role: 'other', status: 'active' }
-  ]
+  classes: [],
+  students: [],
+  studentHistories: [],
+  users: []
 }
 
 // 创建数据slice
@@ -198,6 +345,137 @@ const dataSlice = createSlice({
     updateData: (state, action) => {
       return { ...state, ...action.payload }
     }
+  },
+  extraReducers: (builder) => {
+    // 处理获取学生列表
+    builder
+      .addCase(fetchStudents.pending, (state) => {
+        state.loading = true
+        state.error = null
+      })
+      .addCase(fetchStudents.fulfilled, (state, action) => {
+        state.loading = false
+        console.log('[dataSlice] fetchStudents.fulfilled - RAW payload:', JSON.stringify(action.payload))
+        console.log('[dataSlice] payload.items:', action.payload.items)
+        console.log('[dataSlice] payload type:', Array.isArray(action.payload) ? 'array' : typeof action.payload)
+        const studentsData = action.payload.items || action.payload
+        console.log('[dataSlice] extracted students:', studentsData)
+        
+        // 使用统一的normalizeStudent函数转换字段
+        const transformedStudents = (Array.isArray(studentsData) ? studentsData : []).map(normalizeStudent)
+        
+        state.students = transformedStudents
+        console.log('[dataSlice] students updated to:', state.students.length, 'records')
+        console.log('[dataSlice] state.students IS array?', Array.isArray(state.students))
+        console.log('[dataSlice] first student:', state.students[0])
+      })
+      .addCase(fetchStudents.rejected, (state, action) => {
+        state.loading = false
+        state.error = action.payload
+      })
+    
+    // 处理创建学生
+    builder
+      .addCase(createStudentAPI.fulfilled, (state, action) => {
+        // 使用统一的normalizeStudent函数转换字段
+        const transformedStudent = normalizeStudent(action.payload)
+        state.students.push(transformedStudent)
+        // 更新班级学生数
+        const classIndex = state.classes.findIndex(cls => cls.id === transformedStudent.classId)
+        if (classIndex !== -1) {
+          state.classes[classIndex].studentCount++
+        }
+      })
+    
+    // 处理更新学生
+    builder
+      .addCase(updateStudentAPI.fulfilled, (state, action) => {
+        const index = state.students.findIndex(student => student.id === action.payload.id)
+        if (index !== -1) {
+          const oldStudent = state.students[index]
+          // 使用统一的normalizeStudent函数转换字段
+          const transformedStudent = normalizeStudent(action.payload)
+          state.students[index] = transformedStudent
+          
+          // 如果学生班级发生变化，更新两个班级的学生数
+          if (oldStudent.classId !== transformedStudent.classId) {
+            // 原班级学生数减1
+            const oldClassIndex = state.classes.findIndex(cls => cls.id === oldStudent.classId)
+            if (oldClassIndex !== -1) {
+              state.classes[oldClassIndex].studentCount = Math.max(0, state.classes[oldClassIndex].studentCount - 1)
+            }
+            
+            // 新班级学生数加1
+            const newClassIndex = state.classes.findIndex(cls => cls.id === transformedStudent.classId)
+            if (newClassIndex !== -1) {
+              state.classes[newClassIndex].studentCount++
+            }
+          }
+        }
+      })
+    
+    // 处理删除学生
+    builder
+      .addCase(deleteStudentAPI.fulfilled, (state, action) => {
+        // 修复：先查找学生信息再删除
+        const student = state.students.find(s => s.id === action.payload)
+        if (student) {
+          // 更新班级学生数
+          const classIndex = state.classes.findIndex(cls => cls.id === student.classId)
+          if (classIndex !== -1) {
+            state.classes[classIndex].studentCount = Math.max(0, state.classes[classIndex].studentCount - 1)
+          }
+        }
+        // 最后再删除学生
+        state.students = state.students.filter(s => s.id !== action.payload)
+      })
+    
+    // 处理获取班级列表
+    builder
+      .addCase(fetchClasses.pending, (state) => {
+        state.loading = true
+        state.error = null
+      })
+      .addCase(fetchClasses.fulfilled, (state, action) => {
+        state.loading = false
+        console.log('[dataSlice] fetchClasses.fulfilled - RAW payload:', JSON.stringify(action.payload))
+        console.log('[dataSlice] payload.items:', action.payload?.items)
+        console.log('[dataSlice] payload type:', Array.isArray(action.payload) ? 'array' : typeof action.payload)
+        const classesData = action.payload?.items || action.payload || []
+        console.log('[dataSlice] extracted classes:', classesData)
+        
+        // 转换字段名以匹配前端组件的期望
+        const transformedClasses = (Array.isArray(classesData) ? classesData : []).map(normalizeClass)
+        
+        state.classes = transformedClasses
+        console.log('[dataSlice] classes updated to:', state.classes.length, 'records')
+        console.log('[dataSlice] state.classes IS array?', Array.isArray(state.classes))
+      })
+      .addCase(fetchClasses.rejected, (state, action) => {
+        state.loading = false
+        state.error = action.payload
+      })
+    
+    // 处理创建班级
+    builder
+      .addCase(createClassAPI.fulfilled, (state, action) => {
+        state.classes.push(normalizeClass(action.payload))
+      })
+    
+    // 处理更新班级
+    builder
+      .addCase(updateClassAPI.fulfilled, (state, action) => {
+        const index = state.classes.findIndex(cls => cls.id === action.payload.id)
+        if (index !== -1) {
+          state.classes[index] = normalizeClass(action.payload)
+        }
+      })
+    
+    // 处理删除班级
+    builder
+      .addCase(deleteClassAPI.fulfilled, (state, action) => {
+        state.classes = state.classes.filter(cls => cls.id !== action.payload)
+      })
   }
 })
 
@@ -229,6 +507,25 @@ export const {
   // 批量更新
   updateData
 } = dataSlice.actions
+
+// 导出API相关的thunk actions
+export {
+  fetchStudents,
+  createStudentAPI,
+  updateStudentAPI,
+  deleteStudentAPI,
+  fetchClasses,
+  createClassAPI,
+  updateClassAPI,
+  deleteClassAPI,
+  assignStudentToClassAPI
+}
+
+// 导出选择器
+export const selectStudents = (state) => state.data.students
+export const selectClasses = (state) => state.data.classes
+export const selectSchoolInfo = (state) => state.data.schoolInfo
+export const selectUsers = (state) => state.data.users
 
 // 导出reducer
 export default dataSlice.reducer

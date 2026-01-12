@@ -33,15 +33,17 @@ services:
       - "8002:8000"
     environment:
       - PYTHONUNBUFFERED=1
-      - SECRET_KEY=your-secret-key-change-in-production-2024
+      - SECRET_KEY=8KT0A5APriLeIDLyp5QbFHLLnfOdHsgfdTJCUt3O8q4
       - ACCESS_TOKEN_EXPIRE_MINUTES=30
       - REFRESH_TOKEN_EXPIRE_DAYS=7
       - REDIS_URL=redis://redis:6379/0
+      - DEBUG=False
+      - DATABASE_URL=sqlite:///./sports_teaching.db
     volumes:
-      - ./sport-api:/app
-      - ./sport-api/sports_teaching.db:/app/sports_teaching.db
-      - ./sport-api/uploads:/app/uploads
-      - ./sport-api/logs:/app/logs
+      - backend_data:/app
+      - backend_database:/app
+      - backend_uploads:/app/uploads
+      - backend_logs:/app/logs
     networks:
       - sporttools-network
     restart: unless-stopped
@@ -57,6 +59,15 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
+    # 资源限制配置
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: '512M'
+        reservations:
+          cpus: '0.25'
+          memory: '256M'
 
   # 前端服务
   frontend:
@@ -83,10 +94,23 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
+    # 资源限制配置
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: '256M'
+        reservations:
+          cpus: '0.1'
+          memory: '128M'
 
 # 数据卷配置（用于持久化）
 volumes:
   redis_data:  # Redis数据持久化
+  backend_data:  # 后端应用数据
+  backend_database:  # 后端数据库文件
+  backend_uploads:  # 后端上传文件
+  backend_logs:  # 后端日志文件
 
 # 网络配置
 networks:

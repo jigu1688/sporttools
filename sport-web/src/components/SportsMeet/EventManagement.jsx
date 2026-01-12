@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react'
-import { Table, Button, Modal, Form, Input, InputNumber, Select, Space, Typography, message, Card, Popconfirm } from 'antd'
+import { Table, Button, Modal, Form, Input, InputNumber, Select, Space, Typography, message, Card, Popconfirm, Spin } from 'antd'
 import { EditOutlined, DeleteOutlined, PlusOutlined, EyeOutlined } from '@ant-design/icons'
 import { useSelector, useDispatch } from 'react-redux'
-import { setEvents, addEvent, updateEvent, deleteEvent } from '../../store/sportsMeetSlice'
+import { fetchEvents, createEvent, updateEventById, deleteEventById } from '../../store/sportsMeetSlice'
 
 const { Title } = Typography
 
@@ -14,127 +14,15 @@ const EventManagement = () => {
   const [viewData, setViewData] = useState(null)
   
   const dispatch = useDispatch()
-  const { events } = useSelector(state => state.sportsMeet)
+  const { events, loading, error, sportsMeets } = useSelector(state => state.sportsMeet)
   
-
-  // 初始化数据
+  // 从API获取项目列表
   useEffect(() => {
-    const mockData = [
-      {
-        id: '1',
-        name: '50米',
-        type: '径赛',
-        gender: '男女混合',
-        gradeGroups: ['一年级', '二年级'],
-        maxParticipants: 8,
-        totalQuota: 100,
-        status: '报名中'
-      },
-      {
-        id: '2',
-        name: '60米',
-        type: '径赛',
-        gender: '男女混合',
-        gradeGroups: ['三年级', '四年级'],
-        maxParticipants: 8,
-        totalQuota: 100,
-        status: '报名中'
-      },
-      {
-        id: '3',
-        name: '200米',
-        type: '径赛',
-        gender: '男女混合',
-        gradeGroups: ['五年级', '六年级'],
-        maxParticipants: 8,
-        totalQuota: 100,
-        status: '报名中'
-      },
-      {
-        id: '4',
-        name: '400米',
-        type: '径赛',
-        gender: '男女混合',
-        gradeGroups: ['五年级', '六年级'],
-        maxParticipants: 6,
-        totalQuota: 80,
-        status: '报名中'
-      },
-      {
-        id: '5',
-        name: '4x50米接力',
-        type: '径赛',
-        gender: '男女混合',
-        gradeGroups: ['一年级', '二年级', '三年级'],
-        maxParticipants: 4,
-        totalQuota: 60,
-        status: '报名中'
-      },
-      {
-        id: '6',
-        name: '4×100米接力',
-        type: '径赛',
-        gender: '男女混合',
-        gradeGroups: ['四年级', '五年级', '六年级'],
-        maxParticipants: 4,
-        totalQuota: 60,
-        status: '报名中'
-      },
-      {
-        id: '7',
-        name: '立定跳远',
-        type: '田赛',
-        gender: '男女混合',
-        gradeGroups: ['一年级', '二年级'],
-        maxParticipants: 6,
-        totalQuota: 100,
-        status: '报名中'
-      },
-      {
-        id: '8',
-        name: '跳远',
-        type: '田赛',
-        gender: '男女混合',
-        gradeGroups: ['三年级', '四年级', '五年级', '六年级'],
-        maxParticipants: 6,
-        totalQuota: 100,
-        status: '报名中'
-      },
-      {
-        id: '9',
-        name: '跳高',
-        type: '田赛',
-        gender: '男女混合',
-        gradeGroups: ['五年级', '六年级'],
-        maxParticipants: 6,
-        totalQuota: 80,
-        status: '报名中'
-      },
-      {
-        id: '10',
-        name: '前抛实心球',
-        type: '田赛',
-        gender: '男女混合',
-        gradeGroups: ['三年级', '四年级', '五年级', '六年级'],
-        maxParticipants: 6,
-        totalQuota: 100,
-        status: '报名中'
-      },
-      {
-        id: '11',
-        name: '沙包掷远',
-        type: '田赛',
-        gender: '男女混合',
-        gradeGroups: ['一年级', '二年级'],
-        maxParticipants: 6,
-        totalQuota: 100,
-        status: '报名中'
-      }
-    ]
-    if (events.length === 0) {
-      dispatch(setEvents(mockData))
+    // 假设默认使用第一个运动会的ID
+    if (sportsMeets && sportsMeets.length > 0) {
+      dispatch(fetchEvents(sportsMeets[0].id))
     }
-  }, [events, dispatch])
+  }, [dispatch, sportsMeets])
   
   // 显示创建/编辑模态框
   const showModal = (record = null) => {
@@ -177,21 +65,40 @@ const EventManagement = () => {
           status: values.status
         }
         
-        if (editingId) {
-          // 更新项目
-          const updatedEvent = { ...eventData, id: editingId }
-          dispatch(updateEvent(updatedEvent))
-          message.success('项目更新成功')
-        } else {
-          // 创建项目
-          const newEvent = { ...eventData, id: Date.now().toString() }
-          dispatch(addEvent(newEvent))
-          message.success('项目创建成功')
+        if (!sportsMeets || sportsMeets.length === 0) {
+          message.error('请先创建运动会')
+          return
         }
         
-        setIsModalVisible(false)
-        setEditingId(null)
-        form.resetFields()
+        const sportsMeetId = sportsMeets[0].id
+        
+        if (editingId) {
+          // 更新项目
+          dispatch(updateEventById({ sportsMeetId, eventId: editingId, eventData }))
+            .unwrap()
+            .then(() => {
+              message.success('项目更新成功')
+              setIsModalVisible(false)
+              setEditingId(null)
+              form.resetFields()
+            })
+            .catch(err => {
+              message.error(`更新失败: ${err.message}`)
+            })
+        } else {
+          // 创建项目
+          dispatch(createEvent({ sportsMeetId, eventData }))
+            .unwrap()
+            .then(() => {
+              message.success('项目创建成功')
+              setIsModalVisible(false)
+              setEditingId(null)
+              form.resetFields()
+            })
+            .catch(err => {
+              message.error(`创建失败: ${err.message}`)
+            })
+        }
       })
       .catch(info => {
         // console.log('表单验证失败:', info)
@@ -207,8 +114,17 @@ const EventManagement = () => {
       okType: 'danger',
       cancelText: '取消',
       onOk: () => {
-        dispatch(deleteEvent(id))
-        message.success('项目删除成功')
+        if (sportsMeets && sportsMeets.length > 0) {
+          const sportsMeetId = sportsMeets[0].id
+          dispatch(deleteEventById({ sportsMeetId, eventId: id }))
+            .unwrap()
+            .then(() => {
+              message.success('项目删除成功')
+            })
+            .catch(err => {
+              message.error(`删除失败: ${err.message}`)
+            })
+        }
       }
     })
   }
@@ -304,18 +220,44 @@ const EventManagement = () => {
     <div>
       <Space orientation="horizontal" size="middle" style={{ marginBottom: 16 }}>
         <Title level={4} style={{ marginBottom: 0 }}>项目管理</Title>
-        <Button type="primary" icon={<PlusOutlined />} onClick={() => showModal()}>
+        <Select
+          placeholder="选择运动会"
+          style={{ width: 200 }}
+          disabled={!sportsMeets || sportsMeets.length === 0}
+          onChange={(value) => {
+            dispatch(fetchEvents(value))
+          }}
+          options={sportsMeets && sportsMeets.length > 0 ? sportsMeets.map(sm => ({
+            label: sm.name,
+            value: sm.id
+          })) : []}
+        />
+        <Button 
+          type="primary" 
+          icon={<PlusOutlined />} 
+          onClick={() => showModal()}
+          loading={loading}
+        >
           创建项目
         </Button>
       </Space>
       
-      <Table
-        columns={columns}
-        dataSource={events}
-        rowKey="id"
-        bordered
-        pagination={false}
-      />
+      {error && (
+        <div style={{ marginBottom: 16, color: 'red' }}>
+          加载失败: {error}
+        </div>
+      )}
+      
+      <Spin spinning={loading}>
+        <Table
+          columns={columns}
+          dataSource={events}
+          rowKey="id"
+          bordered
+          pagination={false}
+          locale={{ emptyText: '暂无项目数据' }}
+        />
+      </Spin>
       
       {/* 创建/编辑模态框 */}
       <Modal

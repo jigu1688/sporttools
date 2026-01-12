@@ -1,8 +1,8 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { Table, Button, Modal, Form, Input, Select, Space, Typography, message } from 'antd'
 import { EditOutlined, DeleteOutlined, PlusOutlined, EyeOutlined } from '@ant-design/icons'
 import { useSelector, useDispatch } from 'react-redux'
-import { setReferees, addReferee, updateReferee, deleteReferee } from '../../store/sportsMeetSlice'
+import { fetchReferees, createReferee, updateRefereeById, deleteRefereeById } from '../../store/sportsMeetSlice'
 
 const { Title } = Typography
 
@@ -17,18 +17,10 @@ const RefereeManagement = () => {
   const { referees } = useSelector(state => state.sportsMeet)
   
   // 初始化数据
-  React.useEffect(() => {
-    const mockData = [
-      { id: '1', name: '张三', gender: '男', specialty: '径赛', phone: '13800138001', status: '可用' },
-      { id: '2', name: '李四', gender: '女', specialty: '田赛', phone: '13800138002', status: '可用' },
-      { id: '3', name: '王五', gender: '男', specialty: '径赛', phone: '13800138003', status: '可用' },
-      { id: '4', name: '赵六', gender: '男', specialty: '田赛', phone: '13800138004', status: '可用' },
-      { id: '5', name: '孙七', gender: '女', specialty: '径赛', phone: '13800138005', status: '可用' }
-    ]
-    if (referees.length === 0) {
-      dispatch(setReferees(mockData))
-    }
-  }, [referees, dispatch])
+  useEffect(() => {
+    // 从API获取裁判数据
+    dispatch(fetchReferees())
+  }, [dispatch])
   
   // 显示创建/编辑模态框
   const showModal = (record = null) => {
@@ -56,49 +48,50 @@ const RefereeManagement = () => {
   }
   
   // 保存裁判员
-  const handleOk = () => {
-    form.validateFields()
-      .then(values => {
-        const refereeData = {
-          name: values.name,
-          gender: values.gender,
-          specialty: values.specialty,
-          phone: values.phone,
-          status: values.status
-        }
-        
-        if (editingId) {
-          // 更新裁判员
-          const updatedReferee = { ...refereeData, id: editingId }
-          dispatch(updateReferee(updatedReferee))
-          message.success('裁判员更新成功')
-        } else {
-          // 创建裁判员
-          const newReferee = { ...refereeData, id: Date.now().toString() }
-          dispatch(addReferee(newReferee))
-          message.success('裁判员创建成功')
-        }
-        
-        setIsModalVisible(false)
-        setEditingId(null)
-        form.resetFields()
-      })
-      .catch(info => {
-        // console.log('表单验证失败:', info)
-      })
+  const handleOk = async () => {
+    try {
+      const values = await form.validateFields()
+      const refereeData = {
+        name: values.name,
+        gender: values.gender,
+        specialty: values.specialty,
+        phone: values.phone,
+        status: values.status
+      }
+      
+      if (editingId) {
+        // 更新裁判员
+        await dispatch(updateRefereeById({ refereeId: editingId, refereeData })).unwrap()
+        message.success('裁判员更新成功')
+      } else {
+        // 创建裁判员
+        await dispatch(createReferee(refereeData)).unwrap()
+        message.success('裁判员创建成功')
+      }
+      
+      setIsModalVisible(false)
+      setEditingId(null)
+      form.resetFields()
+    } catch (error) {
+      message.error(error || '操作失败，请重试')
+    }
   }
   
   // 删除裁判员
-  const handleDelete = (id) => {
+  const handleDelete = async (id) => {
     Modal.confirm({
       title: '确认删除',
       content: '您确定要删除这个裁判员吗？',
       okText: '确认',
       okType: 'danger',
       cancelText: '取消',
-      onOk: () => {
-        dispatch(deleteReferee(id))
-        message.success('裁判员删除成功')
+      onOk: async () => {
+        try {
+          await dispatch(deleteRefereeById(id)).unwrap()
+          message.success('裁判员删除成功')
+        } catch (error) {
+          message.error(error || '删除失败，请重试')
+        }
       }
     })
   }

@@ -1,16 +1,15 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Table, Button, Modal, Form, Input, Select, message, Card, Space, Typography, Switch } from 'antd'
 import { PlusOutlined, EditOutlined, DeleteOutlined, SearchOutlined } from '@ant-design/icons'
-import { useSelector, useDispatch } from 'react-redux'
+import { useSelector } from 'react-redux'
 
 const { Title } = Typography
 const { Option } = Select
 
-const API_BASE_URL = `${import.meta.env.VITE_API_BASE_URL || 'http://localhost:8002'}/api/v1`
+const API_BASE_URL = `${import.meta.env.VITE_API_BASE_URL || 'http://localhost:8001'}/api/v1`
 
 const Users = () => {
   // const { users } = useSelector(state => state.data)
-  const dispatch = useDispatch()
   const { token } = useSelector(state => state.auth)
   const [loading, setLoading] = useState(false)
   const [isModalVisible, setIsModalVisible] = useState(false)
@@ -18,10 +17,9 @@ const Users = () => {
   const [editingId, setEditingId] = useState(null)
   const [searchText, setSearchText] = useState('')
   const [users, setUsers] = useState([])
-  const [total, setTotal] = useState(0)
   
   // 获取用户列表
-  const fetchUsers = async () => {
+  const fetchUsers = useCallback(async () => {
     setLoading(true)
     try {
       const response = await fetch(`${API_BASE_URL}/users?skip=0&limit=100`, {
@@ -33,37 +31,22 @@ const Users = () => {
       
       if (response.ok) {
         const data = await response.json()
-        // 检查返回数据格式，如果是分页格式则使用items字段
-        if (data.items && Array.isArray(data.items)) {
-          setUsers(data.items || [])
-          setTotal(data.total || 0)
-        } else {
-          // 兼容旧格式
-          setUsers(data || [])
-          setTotal(data.length || 0)
-        }
+        setUsers(data || [])
       } else {
-        if (response.status === 401) {
-          message.error('登录已过期，请重新登录')
-          // 跳转到登录页面
-          window.location.href = '/login'
-        } else {
-          const errorData = await response.json().catch(() => ({}))
-          message.error(errorData.detail || '获取用户列表失败')
-        }
+        message.error('获取用户列表失败')
       }
-    } catch (error) {
-      console.error('获取用户列表错误:', error)
+    } catch (_error) {
+      console.error('获取用户列表错误:', _error)
       message.error('获取用户列表失败')
     } finally {
       setLoading(false)
     }
-  }
+  }, [token])
   
   // 组件加载时获取用户列表
   useEffect(() => {
     fetchUsers()
-  }, [token])
+  }, [token, fetchUsers])
 
   // 显示添加/编辑弹窗
   const showModal = (record = null) => {
@@ -129,13 +112,14 @@ const Users = () => {
           setIsModalVisible(false)
           setEditingId(null)
         } catch (error) {
+          console.error('操作失败:', error)
           message.error('操作失败，请稍后重试')
         } finally {
           setLoading(false)
         }
       })
       .catch(info => {
-        // 表单验证失败，不处理
+        console.debug('表单验证失败:', info)
       })
   }
 
@@ -385,7 +369,7 @@ const Users = () => {
                   { pattern: /[A-Z]/, message: '密码必须包含至少一个大写字母!' },
                   { pattern: /[a-z]/, message: '密码必须包含至少一个小写字母!' },
                   { pattern: /[0-9]/, message: '密码必须包含至少一个数字!' },
-                  { pattern: /[!@#$%^&*()_+=\[\]{}|;:,.<>?-]/, message: '密码必须包含至少一个特殊字符!' },
+                  { pattern: /[!@#$%^&*()_+=[\]{}|;:,.<>?-]/, message: '密码必须包含至少一个特殊字符!' },
                   { pattern: /^[^\s]*$/, message: '密码不能包含空格!' }
                 ]}
               >

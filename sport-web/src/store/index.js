@@ -28,12 +28,15 @@ import dataReducer from './dataSlice'
 import physicalTestReducer from './physicalTestSlice'
 import statisticsReducer from './statisticsSlice'
 import sportsMeetReducer from './sportsMeetSlice'
+import schoolReducer from './schoolSlice'
+import schoolYearReducer from './schoolYearSlice'
+import logReducer from './logSlice'
 
 // Redux持久化配置
 const persistConfig = {
   key: 'root',
   storage: customStorage,
-  whitelist: ['auth', 'data'] // 持久化auth和data状态，确保网页内部设置也能保存
+  whitelist: ['auth'] // 只持久化auth状态，data每次从API获取
 }
 
 // 组合reducers
@@ -42,7 +45,10 @@ const rootReducer = combineReducers({
   data: dataReducer,
   physicalTest: physicalTestReducer,
   statistics: statisticsReducer,
-  sportsMeet: sportsMeetReducer
+  sportsMeet: sportsMeetReducer,
+  school: schoolReducer,
+  schoolYear: schoolYearReducer,
+  log: logReducer
 })
 
 // 创建持久化reducer

@@ -37,7 +37,7 @@ apiClient.interceptors.request.use(
           }
         }
       } catch (error) {
-        // 获取令牌失败，不影响请求继续
+        console.debug('获取令牌失败:', error)
       }
     }
     return config

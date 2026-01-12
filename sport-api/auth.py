@@ -1,7 +1,7 @@
 # 体育教学辅助网站 - 用户认证和权限管理
 # 提供JWT认证、密码加密、用户管理等功能
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional, Union
 from jose import JWTError, jwt
 from passlib.context import CryptContext
@@ -12,10 +12,11 @@ import os
 # 直接使用bcrypt库，避免passlib的bug
 import bcrypt
 
-# JWT配置
-SECRET_KEY = os.getenv("SECRET_KEY", "your-secret-key-change-in-production-2024")
+# 从配置文件获取JWT配置
+from config import settings
+SECRET_KEY = settings.secret_key
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 30
+ACCESS_TOKEN_EXPIRE_MINUTES = settings.access_token_expire_minutes
 REFRESH_TOKEN_EXPIRE_DAYS = 7
 
 class AuthService:
@@ -25,10 +26,19 @@ class AuthService:
     def verify_password(plain_password: str, hashed_password: str) -> bool:
         """验证密码"""
         try:
-            return bcrypt.checkpw(
-                plain_password.encode('utf-8'),
-                hashed_password.encode('utf-8')
-            )
+            # 首先尝试bcrypt验证
+            if '$2b$' in hashed_password:
+                return bcrypt.checkpw(
+                    plain_password.encode('utf-8'),
+                    hashed_password.encode('utf-8')
+                )
+            # 如果不是bcrypt，尝试SHA256验证
+            elif len(hashed_password) == 64:  # SHA256哈希长度
+                import hashlib
+                input_hash = hashlib.sha256(plain_password.encode()).hexdigest()
+                return input_hash == hashed_password
+            else:
+                return False
         except Exception as e:
             print(f"密码验证错误: {str(e)}")
             return False
@@ -41,8 +51,8 @@ class AuthService:
         - bool: 密码是否符合强度要求
         - str: 密码强度提示或错误信息
         """
-        if len(password) < 8:
-            return False, "密码长度至少为8个字符"
+        if len(password) < 10:
+            return False, "密码长度至少为10个字符"
         
         # 检查是否包含大写字母
         if not any(c.isupper() for c in password):
@@ -64,6 +74,19 @@ class AuthService:
         # 检查是否包含空格
         if ' ' in password:
             return False, "密码不能包含空格"
+        
+        # 检查是否包含连续的相同字符
+        for i in range(len(password) - 2):
+            if password[i] == password[i+1] == password[i+2]:
+                return False, "密码不能包含三个或更多连续的相同字符"
+        
+        # 检查是否包含常见密码
+        common_passwords = ["Password123!", "Admin123!", "Qwerty123!", "1234567890!", "Abcdef123!"]
+        if password.lower() in [p.lower() for p in common_passwords]:
+            return False, "密码不能使用常见密码"
+        
+        # 检查是否包含用户名（如果用户名在上下文中可用，这里简化处理）
+        # 注意：这个检查在实际使用时需要结合上下文获取用户名
         
         return True, "密码强度符合要求"
     
@@ -88,9 +111,9 @@ class AuthService:
         """创建JWT访问令牌"""
         to_encode = data.copy()
         if expires_delta:
-            expire = datetime.utcnow() + expires_delta
+            expire = datetime.now(timezone.utc) + expires_delta
         else:
-            expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+            expire = datetime.now(timezone.utc) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
         
         to_encode.update({"exp": expire})
         encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
@@ -145,9 +168,9 @@ class AuthService:
         """创建刷新令牌"""
         to_encode = data.copy()
         if expires_delta:
-            expire = datetime.utcnow() + expires_delta
+            expire = datetime.now(timezone.utc) + expires_delta
         else:
-            expire = datetime.utcnow() + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)
+            expire = datetime.now(timezone.utc) + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)
         
         to_encode.update({"exp": expire, "type": "refresh"})
         encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
@@ -286,54 +309,63 @@ def require_role(required_roles: list):
         return wrapper
     return decorator
 
+def _validate_permissions(current_user, required_permissions: list):
+    """统一的权限校验逻辑"""
+    if not current_user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="未认证"
+        )
+
+    user_role = current_user.role.value if hasattr(current_user.role, 'value') else str(current_user.role)
+    if user_role == 'admin':
+        return
+
+    role_permissions = {
+        'teacher': ['student_manage', 'class_manage'],
+        'student': [],
+        'parent': ['student_manage']
+    }
+
+    required_permission_values = [
+        perm.value if hasattr(perm, 'value') else str(perm)
+        for perm in required_permissions
+    ]
+
+    for required_permission in required_permission_values:
+        if required_permission not in role_permissions.get(user_role, []):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="权限不足"
+            )
+
 def require_permissions(required_permissions: list):
-    """权限装饰器"""
+    """权限检查装饰器"""
+
     def decorator(func):
         @wraps(func)
         async def wrapper(*args, **kwargs):
-            # 从参数中获取current_user
-            current_user = None
-            for arg in args:
-                if hasattr(arg, 'role') and hasattr(arg, 'id'):
-                    current_user = arg
-                    break
-            
+            current_user = kwargs.get('current_user')
+
             if not current_user:
-                # 尝试从kwargs中获取
-                current_user = kwargs.get('current_user')
-            
-            if not current_user:
-                raise HTTPException(
-                    status_code=status.HTTP_401_UNAUTHORIZED,
-                    detail="未认证"
-                )
-            
-            # 检查用户角色是否满足权限要求
-            user_role = current_user.role.value if hasattr(current_user.role, 'value') else str(current_user.role)
-            
-            # 管理员拥有所有权限
-            if user_role == 'admin':
-                return await func(*args, **kwargs)
-            
-            # 检查具体权限
-            # 这里可以根据实际需要实现更复杂的权限检查逻辑
-            # 目前简化处理：根据角色映射权限
-            role_permissions = {
-                'teacher': ['student_manage', 'class_manage'],
-                'student': [],
-                'parent': ['student_manage']  # 家长只能管理自己孩子的信息
-            }
-            
-            user_permissions = role_permissions.get(user_role, [])
-            
-            for required_permission in required_permissions:
-                # required_permission已经是PermissionType枚举的value，所以直接比较
-                if required_permission not in user_permissions:
-                    raise HTTPException(
-                        status_code=status.HTTP_403_FORBIDDEN,
-                        detail="权限不足"
-                    )
-            
+                for arg in args:
+                    if hasattr(arg, 'role') and hasattr(arg, 'id'):
+                        current_user = arg
+                        break
+
+            _validate_permissions(current_user, required_permissions)
             return await func(*args, **kwargs)
+
         return wrapper
+
     return decorator
+
+
+def require_permissions_dependency(required_permissions: list):
+    """权限检查依赖，供Depends使用"""
+
+    async def dependency(current_user=Depends(get_current_user)):
+        _validate_permissions(current_user, required_permissions)
+        return current_user
+
+    return dependency

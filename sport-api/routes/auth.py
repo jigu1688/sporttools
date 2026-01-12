@@ -19,7 +19,7 @@ from auth import AuthService, get_current_user, require_permissions, PermissionT
 from models import UserRoleEnum, StatusEnum
 
 # 创建路由器
-router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
+router = APIRouter(tags=["auth"])
 
 # 依赖注入：获取数据库会话
 def get_db():

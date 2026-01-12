@@ -1,8 +1,13 @@
 import React, { useState, useEffect } from 'react'
-import { Table, Button, Modal, Form, Select, Space, Typography, message, Tabs, Checkbox, Card, Row, Col, Input } from 'antd'
+import { Table, Button, Modal, Form, Select, Space, Typography, message, Tabs, Checkbox, Card, Row, Col, Input, Spin } from 'antd'
 import { PlusOutlined, MinusOutlined, CheckOutlined } from '@ant-design/icons'
 import { useSelector, useDispatch } from 'react-redux'
-import { setRegistrations, batchAddRegistrations, deleteRegistration, updateRegistration } from '../../store/sportsMeetSlice'
+import { 
+  fetchRegistrations, 
+  batchCreateRegistrations, 
+  deleteRegistrationById, 
+  updateRegistration 
+} from '../../store/sportsMeetSlice'
 
 const { Title, Text } = Typography
 const { Option } = Select
@@ -22,45 +27,26 @@ const RegistrationManagement = () => {
   const [searchForm] = Form.useForm()
   
   const dispatch = useDispatch()
-  const { events, registrations, sportsMeets } = useSelector(state => state.sportsMeet)
+  const { events, registrations, sportsMeets, loading, error } = useSelector(state => state.sportsMeet)
   const { students, classes } = useSelector(state => state.data) // 复用学生管理数据
   
   // 筛选相关状态
   const [filteredRegistrations, setFilteredRegistrations] = useState(registrations)
   const [searchValues, setSearchValues] = useState({})
   
-  // 初始化数据
+  // 获取报名数据
   useEffect(() => {
-    const mockData = [
-      {
-        id: '1',
-        sportsMeetId: '1',
-        eventId: '1',
-        studentId: '1',
-        studentName: '张三',
-        className: '一年级1班',
-        gender: '男',
-        grade: '一年级',
-        status: '已报名',
-        createdAt: '2026-01-05'
-      },
-      {
-        id: '2',
-        sportsMeetId: '1',
-        eventId: '1',
-        studentId: '2',
-        studentName: '李四',
-        className: '一年级1班',
-        gender: '男',
-        grade: '一年级',
-        status: '已报名',
-        createdAt: '2026-01-05'
-      }
-    ]
-    if (registrations.length === 0) {
-      dispatch(setRegistrations(mockData))
+    if (sportsMeets && sportsMeets.length > 0) {
+      // 默认使用第一个运动会的ID
+      dispatch(fetchRegistrations({ sportsMeetId: sportsMeets[0].id }))
     }
-  }, [registrations, dispatch])
+  }, [dispatch, sportsMeets])
+  
+  // 当选择不同的运动会时，重新获取报名数据
+  const handleSportsMeetChange = (value) => {
+    form.setFieldsValue({ sportsMeetId: value })
+    dispatch(fetchRegistrations({ sportsMeetId: value }))
+  }
   
   // 处理搜索表单变化
   const handleSearchChange = (values) => {
@@ -69,7 +55,7 @@ const RegistrationManagement = () => {
   
   // 筛选报名列表
   useEffect(() => {
-    let result = [...registrations]
+    let result = registrations ? [...registrations] : []
     
     // 按项目筛选
     if (searchValues.searchEvent) {
@@ -105,27 +91,31 @@ const RegistrationManagement = () => {
     const groups = {}
     
     // 初始化班级分组
-    classes.forEach(cls => {
-      groups[cls.id] = {
-        id: cls.id,
-        grade: cls.grade,
-        className: cls.className,
-        male: [],
-        female: []
-      }
-    })
-    
-    // 按班级和性别分组学生
-    students.forEach(student => {
-      // 优先使用classId关联班级，而不是className
-      const classId = student.classId
-      const gender = student.gender
+    if (classes && classes.length > 0) {
+      classes.forEach(cls => {
+        groups[cls.id] = {
+          id: cls.id,
+          grade: cls.grade,
+          className: cls.className,
+          male: [],
+          female: []
+        }
+      })
       
-      if (groups[classId]) {
-        // 支持中文性别和英文性别两种格式
-        groups[classId][(gender === '男' || gender === 'male') ? 'male' : 'female'].push(student)
+      // 按班级和性别分组学生
+      if (students && students.length > 0) {
+        students.forEach(student => {
+          // 优先使用classId关联班级，而不是className
+          const classId = student.classId
+          const gender = student.gender
+          
+          if (groups[classId]) {
+            // 支持中文性别和英文性别两种格式
+            groups[classId][(gender === '男' || gender === 'male') ? 'male' : 'female'].push(student)
+          }
+        })
       }
-    })
+    }
     
     return groups
   }, [classes, students])
@@ -133,9 +123,9 @@ const RegistrationManagement = () => {
   // 获取已报名的学生ID列表
   const getRegisteredStudentIds = (eventId) => {
     const sportsMeetId = form.getFieldValue('sportsMeetId') || '1'
-    return registrations
+    return registrations && registrations.length > 0 ? registrations
       .filter(reg => reg.eventId === eventId && reg.sportsMeetId === sportsMeetId)
-      .map(reg => reg.studentId)
+      .map(reg => reg.studentId) : []
   }
   
   // 显示报名模态框
@@ -269,53 +259,51 @@ const RegistrationManagement = () => {
     // 获取班级信息
     const classInfo = classGroups[selectedClass];
     // 获取表单中选择的运动会ID
-    const sportsMeetId = form.getFieldValue('sportsMeetId') || '1' // 默认使用第一个运动会
-    
-    // 获取现有报名数据，用于计算序号
-    const existingRegistrations = [...registrations]
+      const sportsMeetId = form.getFieldValue('sportsMeetId') || (sportsMeets && sportsMeets.length > 0 ? sportsMeets[0].id : '1') // 默认使用第一个运动会
+      
+      // 获取现有报名数据，用于计算序号
+      const existingRegistrations = registrations ? [...registrations] : []
     
     // 创建报名数据
-        const newRegistrations = allSelectedStudents.map(studentId => {
-          const student = students.find(s => s.id === studentId)
-          if (!student) return null
-          
-          // 生成比赛编号，传递运动会ID
-          const competitionNumber = generateCompetitionNumber(student, existingRegistrations, sportsMeetId)
-          
-          const registrationData = {
-            id: Date.now().toString() + '-' + studentId,
-            sportsMeetId: sportsMeetId,
-            eventId: selectedEvent.id,
-            studentId: studentId,
-            studentName: student.name,
-            classId: selectedClass,
-            className: classInfo?.className || '',
-            gender: student.gender,
-            grade: student.grade,
-            competitionNumber: competitionNumber, // 添加比赛编号
-            status: '待审核', // 报名后需要审核
-            createdAt: new Date().toISOString().split('T')[0],
-            // 新增字段，完善报名数据结构
-            isTeamEvent: selectedEvent.isTeamEvent || false, // 是否为团体项目
-            teamId: selectedEvent.isTeamEvent ? `${sportsMeetId}-${selectedEvent.id}-${classInfo?.className}` : null, // 团体项目的团队ID
-            teamName: selectedEvent.isTeamEvent ? `${classInfo?.grade} ${classInfo?.className}` : null, // 团队名称
-            notes: '', // 报名备注
-            // 审核相关字段
-            reviewedBy: null, // 审核人
-            reviewedAt: null, // 审核时间
-            reviewNotes: '' // 审核备注
-          }
-          
-          // 将新生成的报名添加到现有列表中，用于后续学生的序号计算
-          existingRegistrations.push(registrationData)
-          
-          return registrationData
-        }).filter(Boolean) // 过滤掉null值
+    const registrationsData = allSelectedStudents.map(studentId => {
+      const student = students.find(s => s.id === studentId)
+      if (!student) return null
+      
+      // 生成比赛编号，传递运动会ID
+      const competitionNumber = generateCompetitionNumber(student, existingRegistrations, sportsMeetId)
+      
+      const registrationData = {
+        studentId: studentId,
+        eventId: selectedEvent.id,
+        competitionNumber: competitionNumber, // 添加比赛编号
+        status: '待审核', // 报名后需要审核
+        // 新增字段，完善报名数据结构
+        isTeamEvent: selectedEvent.isTeamEvent || false, // 是否为团体项目
+        teamId: selectedEvent.isTeamEvent ? `${sportsMeetId}-${selectedEvent.id}-${classInfo?.className}` : null, // 团体项目的团队ID
+        teamName: selectedEvent.isTeamEvent ? `${classInfo?.grade} ${classInfo?.className}` : null, // 团队名称
+        notes: '', // 报名备注
+        // 审核相关字段
+        reviewedBy: null, // 审核人
+        reviewedAt: null, // 审核时间
+        reviewNotes: '' // 审核备注
+      }
+      
+      // 将新生成的报名添加到现有列表中，用于后续学生的序号计算
+      existingRegistrations.push(registrationData)
+      
+      return registrationData
+    }).filter(Boolean) // 过滤掉null值
     
-    // 批量添加报名
-    dispatch(batchAddRegistrations(newRegistrations))
-    message.success(`成功报名 ${newRegistrations.length} 名学生`)
-    handleCancel()
+    // 批量创建报名
+    dispatch(batchCreateRegistrations({ sportsMeetId, registrationsData }))
+      .unwrap()
+      .then(() => {
+        message.success(`成功报名 ${registrationsData.length} 名学生`)
+        handleCancel()
+      })
+      .catch(err => {
+        message.error(`报名失败: ${err.message}`)
+      })
   }
   
   // 取消报名
@@ -327,8 +315,15 @@ const RegistrationManagement = () => {
       okType: 'danger',
       cancelText: '取消',
       onOk: () => {
-        dispatch(deleteRegistration(registrationId))
-        message.success('报名已取消')
+        const sportsMeetId = form.getFieldValue('sportsMeetId') || (sportsMeets.length > 0 ? sportsMeets[0].id : '1')
+        dispatch(deleteRegistrationById({ sportsMeetId, registrationId }))
+          .unwrap()
+          .then(() => {
+            message.success('报名已取消')
+          })
+          .catch(err => {
+            message.error(`取消失败: ${err.message}`)
+          })
       }
     })
   }
@@ -504,12 +499,10 @@ const RegistrationManagement = () => {
             <Select 
               placeholder="请选择运动会" 
               style={{ width: 200 }}
-              defaultValue="1" // 默认选择第一个运动会
-              onChange={(value) => {
-                form.setFieldsValue({ sportsMeetId: value })
-              }}
+              onChange={handleSportsMeetChange}
+              loading={loading}
             >
-              {sportsMeets.map(meet => (
+              {sportsMeets && sportsMeets.length > 0 && sportsMeets.map(meet => (
                 <Option key={meet.id} value={meet.id}>{meet.name}</Option>
               ))}
             </Select>
@@ -648,15 +641,24 @@ const RegistrationManagement = () => {
           </Form.Item>
         </Form>
         
-        <Table
-          columns={registrationColumns}
-          dataSource={filteredRegistrations}
-          rowKey="id"
-          bordered
-          pagination={{
-            pageSize: 10
-          }}
-        />
+        {error && (
+          <div style={{ marginBottom: 16, color: 'red' }}>
+            加载失败: {error}
+          </div>
+        )}
+        
+        <Spin spinning={loading}>
+          <Table
+            columns={registrationColumns}
+            dataSource={filteredRegistrations}
+            rowKey="id"
+            bordered
+            pagination={{
+              pageSize: 10
+            }}
+            locale={{ emptyText: '暂无报名数据' }}
+          />
+        </Spin>
       </div>
       
       {/* 报名模态框 */}

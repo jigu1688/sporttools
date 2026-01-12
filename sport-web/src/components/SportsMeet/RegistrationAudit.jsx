@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react'
-import { Table, Button, Modal, Form, Select, Space, Typography, message, Tag, Checkbox } from 'antd'
+import { Table, Button, Modal, Form, Select, Space, Typography, message, Tag, Checkbox, Spin } from 'antd'
 import { EyeOutlined, CheckOutlined, CloseOutlined } from '@ant-design/icons'
 import { useSelector, useDispatch } from 'react-redux'
-import { setRegistrations, updateRegistration } from '../../store/sportsMeetSlice'
+import { fetchPendingRegistrations, approveRegistration, rejectRegistration } from '../../store/sportsMeetSlice'
 
 const { Title, Text } = Typography
 const { Option } = Select
@@ -15,52 +15,24 @@ const RegistrationAudit = () => {
   const [batchAction, setBatchAction] = useState('approve')
   
   const dispatch = useDispatch()
-  const { events, registrations } = useSelector(state => state.sportsMeet)
+  const { events, registrations, sportsMeets, loading, error } = useSelector(state => state.sportsMeet)
+  const [selectedSportsMeetId, setSelectedSportsMeetId] = useState(null)
   
-  // 初始化数据
+  // 获取待审核报名数据
   useEffect(() => {
-    const mockData = [
-      {
-        id: '1',
-        sportsMeetId: '1',
-        eventId: '1',
-        studentId: '1',
-        studentName: '张三',
-        className: '一年级1班',
-        gender: '男',
-        grade: '一年级',
-        status: '待审核',
-        createdAt: '2026-01-05'
-      },
-      {
-        id: '2',
-        sportsMeetId: '1',
-        eventId: '1',
-        studentId: '2',
-        studentName: '李四',
-        className: '一年级1班',
-        gender: '男',
-        grade: '一年级',
-        status: '待审核',
-        createdAt: '2026-01-05'
-      },
-      {
-        id: '3',
-        sportsMeetId: '1',
-        eventId: '2',
-        studentId: '3',
-        studentName: '王五',
-        className: '二年级2班',
-        gender: '女',
-        grade: '二年级',
-        status: '待审核',
-        createdAt: '2026-01-05'
-      }
-    ]
-    if (registrations.length === 0) {
-      dispatch(setRegistrations(mockData))
+    if (sportsMeets && sportsMeets.length > 0) {
+      // 默认使用第一个运动会的ID
+      const defaultSportsMeetId = sportsMeets[0].id
+      setSelectedSportsMeetId(defaultSportsMeetId)
+      dispatch(fetchPendingRegistrations(defaultSportsMeetId))
     }
-  }, [registrations, dispatch])
+  }, [dispatch, sportsMeets])
+  
+  // 当选择不同的运动会时，重新获取待审核报名数据
+  const handleSportsMeetChange = (value) => {
+    setSelectedSportsMeetId(value)
+    dispatch(fetchPendingRegistrations(value))
+  }
   
   // 查看报名详情
   const handleView = (record) => {
@@ -87,16 +59,14 @@ const RegistrationAudit = () => {
       okType: 'success',
       cancelText: '取消',
       onOk: () => {
-        const registration = registrations.find(reg => reg.id === registrationId)
-        if (registration) {
-          dispatch(updateRegistration({
-            ...registration,
-            status: '已通过',
-            reviewedAt: new Date().toISOString().split('T')[0],
-            reviewedBy: '系统管理员' // 这里可以替换为实际登录用户
-          }))
-          message.success('报名已通过')
-        }
+        dispatch(approveRegistration({ sportsMeetId: selectedSportsMeetId, registrationId }))
+          .unwrap()
+          .then(() => {
+            message.success('报名已通过')
+          })
+          .catch(err => {
+            message.error(`审核通过失败: ${err.message}`)
+          })
       }
     })
   }
@@ -114,17 +84,18 @@ const RegistrationAudit = () => {
       okType: 'danger',
       cancelText: '取消',
       onOk: () => {
-        const registration = registrations.find(reg => reg.id === registrationId)
-        if (registration) {
-          dispatch(updateRegistration({
-            ...registration,
-            status: '已拒绝',
-            reviewedAt: new Date().toISOString().split('T')[0],
-            reviewedBy: '系统管理员', // 这里可以替换为实际登录用户
-            reviewNotes: '不符合报名条件' // 这里可以根据实际情况填写拒绝理由
-          }))
-          message.success('报名已拒绝')
-        }
+        dispatch(rejectRegistration({ 
+          sportsMeetId: selectedSportsMeetId, 
+          registrationId, 
+          reason: '不符合报名条件' 
+        }))
+          .unwrap()
+          .then(() => {
+            message.success('报名已拒绝')
+          })
+          .catch(err => {
+            message.error(`审核拒绝失败: ${err.message}`)
+          })
       }
     })
   }
@@ -153,22 +124,37 @@ const RegistrationAudit = () => {
       okType: batchAction === 'approve' ? 'success' : 'danger',
       cancelText: '取消',
       onOk: () => {
-        selectedRegistrations.forEach(registrationId => {
-          const registration = registrations.find(reg => reg.id === registrationId)
-          if (registration) {
-            dispatch(updateRegistration({
-              ...registration,
-              status: batchAction === 'approve' ? '已通过' : '已拒绝',
-              reviewedAt: new Date().toISOString().split('T')[0],
-              reviewedBy: '系统管理员', // 这里可以替换为实际登录用户
-              reviewNotes: batchAction === 'approve' ? '批量通过' : '批量拒绝'
-            }))
-          }
+        let successCount = 0
+        let errorCount = 0
+        
+        // 使用Promise.all处理批量操作
+        Promise.all(
+          selectedRegistrations.map(registrationId => {
+            if (batchAction === 'approve') {
+              return dispatch(approveRegistration({ 
+                sportsMeetId: selectedSportsMeetId, 
+                registrationId 
+              })).unwrap()
+            } else {
+              return dispatch(rejectRegistration({ 
+                sportsMeetId: selectedSportsMeetId, 
+                registrationId, 
+                reason: '批量拒绝' 
+              })).unwrap()
+            }
+          })
+        )
+        .then(() => {
+          message.success(`${batchAction === 'approve' ? '通过' : '拒绝'}成功 ${selectedRegistrations.length} 条记录`)
         })
-        message.success(`${batchAction === 'approve' ? '通过' : '拒绝'}成功`)        
-        setIsBatchModalVisible(false)
-        setSelectedRegistrations([])
-        setBatchAction('approve')
+        .catch(err => {
+          message.error(`操作失败: ${err.message}`)
+        })
+        .finally(() => {
+          setIsBatchModalVisible(false)
+          setSelectedRegistrations([])
+          setBatchAction('approve')
+        })
       }
     })
   }
@@ -180,11 +166,11 @@ const RegistrationAudit = () => {
     {
       title: (
         <Checkbox
-          indeterminate={selectedRegistrations.length > 0 && selectedRegistrations.length < registrations.length}
-          checked={selectedRegistrations.length === registrations.length}
+          indeterminate={selectedRegistrations.length > 0 && selectedRegistrations.length < (registrations?.length || 0)}
+          checked={selectedRegistrations.length === (registrations?.length || 0)}
           onChange={(e) => {
             if (e.target.checked) {
-              setSelectedRegistrations(registrations.map(reg => reg.id))
+              setSelectedRegistrations(registrations && registrations.length > 0 ? registrations.map(reg => reg.id) : [])
             } else {
               setSelectedRegistrations([])
             }
@@ -331,10 +317,22 @@ const RegistrationAudit = () => {
     <div>
       <Space orientation="horizontal" size="middle" style={{ marginBottom: 16 }}>
         <Title level={4} style={{ marginBottom: 0 }}>报名审核</Title>
+        <Select
+          placeholder="选择运动会"
+          style={{ width: 200 }}
+          value={selectedSportsMeetId}
+          onChange={handleSportsMeetChange}
+          loading={loading}
+          options={sportsMeets && sportsMeets.length > 0 ? sportsMeets.map(sm => ({
+            label: sm.name,
+            value: sm.id
+          })) : []}
+        />
         <Button 
           type="primary" 
           onClick={showBatchModal}
           disabled={selectedRegistrations.length === 0}
+          loading={loading}
         >
           批量操作
         </Button>
@@ -345,15 +343,24 @@ const RegistrationAudit = () => {
         <Text style={{ marginLeft: 16 }}>请审核学生的报名信息，确保符合项目要求</Text>
       </div>
       
-      <Table
-        columns={columns}
-        dataSource={registrations}
-        rowKey="id"
-        bordered
-        pagination={{
-          pageSize: 10
-        }}
-      />
+      {error && (
+        <div style={{ marginBottom: 16, color: 'red' }}>
+          加载失败: {error}
+        </div>
+      )}
+      
+      <Spin spinning={loading}>
+        <Table
+          columns={columns}
+          dataSource={registrations}
+          rowKey="id"
+          bordered
+          pagination={{
+            pageSize: 10
+          }}
+          locale={{ emptyText: '暂无待审核的报名数据' }}
+        />
+      </Spin>
       
       {/* 报名详情模态框 */}
       <Modal

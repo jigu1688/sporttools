@@ -113,6 +113,15 @@ body {
   background-color: #f5f7fa;
 }
 
+/* 冲突行样式 */
+.ant-table-tbody > tr.conflict-row > td {
+  background-color: #fff2f0;
+}
+
+.ant-table-tbody > tr.conflict-row:hover > td {
+  background-color: #ffccc7;
+}
+
 .ant-table-pagination {
   margin-top: 16px;
   text-align: right;

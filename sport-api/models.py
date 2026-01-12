@@ -8,12 +8,12 @@ import enum
 from datetime import datetime
 
 # 枚举类型定义
-class GenderEnum(enum.Enum):
+class GenderEnum(str, enum.Enum):
     """性别枚举"""
     male = "male"
     female = "female"
 
-class StatusEnum(enum.Enum):
+class StatusEnum(str, enum.Enum):
     """状态枚举"""
     active = "active"
     inactive = "inactive"
@@ -21,25 +21,33 @@ class StatusEnum(enum.Enum):
     transferred = "transferred"
     suspended = "suspended"
 
-class SchoolYearStatusEnum(enum.Enum):
+class SchoolYearStatusEnum(str, enum.Enum):
     """学年状态枚举"""
     active = "active"  # 当前学年
     completed = "completed"  # 已完成学年
     inactive = "inactive"  # 未激活学年
 
-class SportsLevelEnum(enum.Enum):
+class SportsLevelEnum(str, enum.Enum):
     """体育水平枚举"""
     excellent = "excellent"
     good = "good"
     average = "average"
     poor = "poor"
 
-class UserRoleEnum(enum.Enum):
+class UserRoleEnum(str, enum.Enum):
     """用户角色枚举"""
     admin = "admin"
     teacher = "teacher"
     student = "student"
     parent = "parent"
+
+class RegistrationStatusEnum(str, enum.Enum):
+    """报名状态枚举"""
+    pending = "pending"  # 待审核
+    approved = "approved"  # 已批准
+    rejected = "rejected"  # 已拒绝
+    withdrawn = "withdrawn"  # 已撤回
+    completed = "completed"  # 已完成
 
 # 学校信息模型
 class School(Base):
@@ -47,12 +55,22 @@ class School(Base):
     __tablename__ = "schools"
     
     id = Column(Integer, primary_key=True, index=True)
-    school_name = Column(String(200), nullable=False, comment="学校名称")
+    school_name = Column(String(200), nullable=False, comment="学校名称/全称")
+    short_name = Column(String(100), comment="学校简称")
     school_code = Column(String(50), unique=True, comment="学校代码")
+    area = Column(String(100), comment="所属区域")
+    school_level = Column(String(50), comment="学段信息: primary/middle/high/primary-middle/middle-high/all")
+    teacher_count = Column(Integer, default=0, comment="教师人数")
+    registered_student_count = Column(Integer, default=0, comment="在籍学生人数")
+    current_student_count = Column(Integer, default=0, comment="在学学生人数")
+    principal = Column(String(100), comment="校长姓名")
+    phone = Column(String(50), comment="联系电话")
+    email = Column(String(100), comment="邮箱")
     address = Column(Text, comment="学校地址")
-    contact_info = Column(String(200), comment="联系方式")
+    contact_info = Column(String(200), comment="联系方式(旧字段)")
     logo_url = Column(String(500), comment="学校logo地址")
     website = Column(String(200), comment="学校网站")
+    description = Column(Text, comment="学校简介")
     
     # 状态信息
     status = Column(Enum(StatusEnum), default=StatusEnum.active, comment="状态")
@@ -60,9 +78,9 @@ class School(Base):
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now(), comment="更新时间")
     
     # 关联关系
-    classes = relationship("Class", back_populates="school")
+    classes = relationship("Class", back_populates="school", cascade="all, delete-orphan")
     users = relationship("User", back_populates="school")
-    school_years = relationship("SchoolYear", back_populates="school")
+    school_years = relationship("SchoolYear", back_populates="school", cascade="all, delete-orphan")
 
 # 学年信息模型
 class SchoolYear(Base):
@@ -87,7 +105,7 @@ class SchoolYear(Base):
     
     # 关联关系
     school = relationship("School", back_populates="school_years")
-    classes = relationship("Class", back_populates="school_year")
+    classes = relationship("Class", back_populates="school_year", cascade="all, delete-orphan")
 
 # 用户信息模型
 class User(Base):
@@ -225,8 +243,8 @@ class Class(Base):
     # 关联关系
     school = relationship("School", back_populates="classes")
     school_year = relationship("SchoolYear", back_populates="classes")
-    students = relationship("StudentClassRelation", back_populates="class_")
-    physical_tests = relationship("PhysicalTest", back_populates="class_")
+    students = relationship("StudentClassRelation", back_populates="class_", cascade="all, delete-orphan")
+    physical_tests = relationship("PhysicalTest", back_populates="class_", cascade="all, delete-orphan")
 
 # 学生信息模型
 class Student(Base):
@@ -240,6 +258,11 @@ class Student(Base):
     birth_date = Column(Date, nullable=False, comment="出生日期")
     id_card = Column(String(18), comment="身份证号")
     photo_url = Column(String(500), comment="照片地址")
+    
+    # 教育和联系信息
+    education_id = Column(String(100), comment="教育ID")
+    phone = Column(String(20), comment="电话号码")
+    address = Column(Text, comment="家庭地址")
     
     # 健康状况
     health_status = Column(Text, comment="健康状况描述")
@@ -263,9 +286,10 @@ class Student(Base):
     
     # 关联关系
     user = relationship("User", back_populates="student_profiles")
-    class_relations = relationship("StudentClassRelation", back_populates="student")
-    family_info = relationship("FamilyInfo", back_populates="student", uselist=False)
-    physical_tests = relationship("PhysicalTest", back_populates="student")
+    class_relations = relationship("StudentClassRelation", back_populates="student", cascade="all, delete-orphan")
+    family_info = relationship("FamilyInfo", back_populates="student", uselist=False, cascade="all, delete-orphan")
+    physical_tests = relationship("PhysicalTest", back_populates="student", cascade="all, delete-orphan")
+    registrations = relationship("Registration", back_populates="student", cascade="all, delete-orphan")
 
 # 学生班级关联模型
 class StudentClassRelation(Base):
@@ -378,6 +402,204 @@ class PhysicalTest(Base):
     student = relationship("Student", back_populates="physical_tests")
     class_ = relationship("Class", back_populates="physical_tests")
 
+# 运动会相关模型
+
+# 运动会状态枚举
+class SportsMeetStatusEnum(enum.Enum):
+    """运动会状态枚举"""
+    planning = "planning"  # 规划中
+    registration = "registration"  # 报名中
+    scheduled = "scheduled"  # 已编排
+    ongoing = "ongoing"  # 进行中
+    completed = "completed"  # 已完成
+    canceled = "canceled"  # 已取消
+
+# 运动会信息模型
+class SportsMeet(Base):
+    """运动会信息表"""
+    __tablename__ = "sports_meets"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(100), nullable=False, comment="运动会名称")
+    start_date = Column(Date, nullable=False, comment="开始日期")
+    end_date = Column(Date, nullable=False, comment="结束日期")
+    location = Column(String(200), comment="举办地点")
+    description = Column(Text, comment="运动会描述")
+    status = Column(Enum(SportsMeetStatusEnum), default=SportsMeetStatusEnum.planning, comment="运动会状态")
+    
+    # 统计信息
+    total_events = Column(Integer, default=0, comment="总项目数")
+    total_athletes = Column(Integer, default=0, comment="总运动员数")
+    total_registrations = Column(Integer, default=0, comment="总报名数")
+    
+    # 组织信息
+    organizer_id = Column(Integer, ForeignKey("users.id"), comment="组织者ID")
+    organizer_name = Column(String(100), comment="组织者姓名")
+    school_id = Column(Integer, ForeignKey("schools.id"), comment="所属学校ID")
+    school_year_id = Column(Integer, ForeignKey("school_years.id"), comment="所属学年ID")
+    
+    # 时间信息
+    created_at = Column(DateTime, server_default=func.now(), comment="创建时间")
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now(), comment="更新时间")
+    completed_at = Column(DateTime, nullable=True, comment="完成时间")
+    
+    # 关联关系
+    events = relationship("Event", back_populates="sports_meet")
+    registrations = relationship("Registration", back_populates="sports_meet")
+    schedules = relationship("Schedule", back_populates="sports_meet")
+    school = relationship("School", back_populates="sports_meets")
+    school_year = relationship("SchoolYear", back_populates="sports_meets")
+
+# 项目类型枚举
+class EventTypeEnum(enum.Enum):
+    """项目类型枚举"""
+    track = "track"  # 径赛
+    field = "field"  # 田赛
+    relay = "relay"  # 接力
+    team = "team"  # 团体项目
+
+# 项目信息模型
+class Event(Base):
+    """项目信息表"""
+    __tablename__ = "events"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    sports_meet_id = Column(Integer, ForeignKey("sports_meets.id"), nullable=False, comment="所属运动会ID")
+    name = Column(String(100), nullable=False, comment="项目名称")
+    event_type = Column(Enum(EventTypeEnum), nullable=False, comment="项目类型")
+    gender = Column(Enum(GenderEnum), comment="性别限制")
+    min_grade = Column(Integer, comment="最低年级")
+    max_grade = Column(Integer, comment="最高年级")
+    description = Column(Text, comment="项目描述")
+    rules = Column(Text, comment="比赛规则")
+    
+    # 时间地点
+    venue_id = Column(Integer, ForeignKey("venues.id"), comment="场馆ID")
+    scheduled_time = Column(DateTime, comment="预定时间")
+    
+    # 组织信息
+    referee_id = Column(Integer, ForeignKey("users.id"), comment="裁判ID")
+    
+    # 统计信息
+    total_participants = Column(Integer, default=0, comment="总参与人数")
+    
+    # 时间信息
+    created_at = Column(DateTime, server_default=func.now(), comment="创建时间")
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now(), comment="更新时间")
+    
+    # 关联关系
+    sports_meet = relationship("SportsMeet", back_populates="events")
+    venue = relationship("Venue", back_populates="events")
+    registrations = relationship("Registration", back_populates="event")
+    schedules = relationship("Schedule", back_populates="event")
+    results = relationship("EventResult", back_populates="event")
+
+# 场馆信息模型
+class Venue(Base):
+    """场馆信息表"""
+    __tablename__ = "venues"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(100), nullable=False, comment="场馆名称")
+    description = Column(Text, comment="场馆描述")
+    capacity = Column(Integer, comment="容纳人数")
+    location = Column(String(200), comment="场馆位置")
+    facilities = Column(JSON, comment="场馆设施")
+    
+    # 时间信息
+    created_at = Column(DateTime, server_default=func.now(), comment="创建时间")
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now(), comment="更新时间")
+    
+    # 关联关系
+    events = relationship("Event", back_populates="venue")
+    schedules = relationship("Schedule", back_populates="venue")
+
+# 报名信息模型
+class Registration(Base):
+    """报名信息表"""
+    __tablename__ = "registrations"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    sports_meet_id = Column(Integer, ForeignKey("sports_meets.id"), nullable=False, comment="所属运动会ID")
+    event_id = Column(Integer, ForeignKey("events.id"), nullable=False, comment="所属项目ID")
+    student_id = Column(Integer, ForeignKey("students.id"), nullable=False, comment="学生ID")
+    
+    # 报名信息
+    registration_time = Column(DateTime, server_default=func.now(), comment="报名时间")
+    status = Column(Enum(RegistrationStatusEnum), default=RegistrationStatusEnum.pending, comment="报名状态")
+    assigned_number = Column(String(20), comment="分配编号")
+    
+    # 成绩信息
+    final_result = Column(String(20), comment="最终成绩")
+    rank = Column(Integer, comment="排名")
+    is_winner = Column(Boolean, default=False, comment="是否获奖")
+    
+    # 时间信息
+    created_at = Column(DateTime, server_default=func.now(), comment="创建时间")
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now(), comment="更新时间")
+    
+    # 关联关系
+    sports_meet = relationship("SportsMeet", back_populates="registrations")
+    event = relationship("Event", back_populates="registrations")
+    student = relationship("Student")
+
+# 赛程信息模型
+class Schedule(Base):
+    """赛程信息表"""
+    __tablename__ = "schedules"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    sports_meet_id = Column(Integer, ForeignKey("sports_meets.id"), nullable=False, comment="所属运动会ID")
+    event_id = Column(Integer, ForeignKey("events.id"), nullable=False, comment="所属项目ID")
+    venue_id = Column(Integer, ForeignKey("venues.id"), nullable=False, comment="场馆ID")
+    
+    # 时间信息
+    start_time = Column(DateTime, nullable=False, comment="开始时间")
+    end_time = Column(DateTime, nullable=False, comment="结束时间")
+    
+    # 分组信息
+    group_name = Column(String(20), comment="组别名称")
+    group_number = Column(Integer, comment="组别编号")
+    
+    # 状态信息
+    status = Column(Enum(StatusEnum), default=StatusEnum.active, comment="状态")
+    
+    # 时间信息
+    created_at = Column(DateTime, server_default=func.now(), comment="创建时间")
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now(), comment="更新时间")
+    
+    # 关联关系
+    sports_meet = relationship("SportsMeet", back_populates="schedules")
+    event = relationship("Event", back_populates="schedules")
+    venue = relationship("Venue", back_populates="schedules")
+
+# 项目成绩模型
+class EventResult(Base):
+    """项目成绩表"""
+    __tablename__ = "event_results"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    event_id = Column(Integer, ForeignKey("events.id"), nullable=False, comment="所属项目ID")
+    registration_id = Column(Integer, ForeignKey("registrations.id"), comment="报名ID")
+    
+    # 成绩信息
+    result_value = Column(String(20), comment="成绩值")
+    result_type = Column(String(20), comment="成绩类型(时间/距离/数量等)")
+    rank = Column(Integer, comment="排名")
+    is_final = Column(Boolean, default=False, comment="是否决赛成绩")
+    
+    # 轮次信息
+    round_name = Column(String(20), comment="轮次名称")
+    round_number = Column(Integer, comment="轮次编号")
+    
+    # 时间信息
+    created_at = Column(DateTime, server_default=func.now(), comment="创建时间")
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now(), comment="更新时间")
+    
+    # 关联关系
+    event = relationship("Event", back_populates="results")
+    registration = relationship("Registration")
+
 # 数据变更日志模型
 class DataChangeLog(Base):
     """数据变更日志表"""
@@ -399,3 +621,7 @@ class DataChangeLog(Base):
     
     # 关联关系
     operator = relationship("User")
+
+# 添加School和SchoolYear的关联关系
+School.sports_meets = relationship("SportsMeet", back_populates="school")
+SchoolYear.sports_meets = relationship("SportsMeet", back_populates="school_year")

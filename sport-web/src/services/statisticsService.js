@@ -1,46 +1,11 @@
-import axios from 'axios'
-
-// 创建axios实例
-const apiClient = axios.create({
-  baseURL: '/api',
-  timeout: 10000,
-  headers: {
-    'Content-Type': 'application/json'
-  }
-})
-
-// 请求拦截器
-apiClient.interceptors.request.use(
-  config => {
-    // 从localStorage获取token
-    const token = localStorage.getItem('token')
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`
-    }
-    return config
-  },
-  error => {
-    return Promise.reject(error)
-  }
-)
-
-// 响应拦截器
-apiClient.interceptors.response.use(
-  response => {
-    return response.data
-  },
-  error => {
-    console.error('API请求错误:', error)
-    return Promise.reject(error)
-  }
-)
+import apiClient from '../utils/apiClient'
 
 // 统计数据API服务
 export const statisticsService = {
   // 获取统计数据
-  getStatistics: async (filters) => {
+  getStatistics: async (filters = {}) => {
     try {
-      const response = await apiClient.get('/statistics', {
+      const response = await apiClient.get('/physical-tests/statistics', {
         params: filters
       })
       return response
@@ -51,9 +16,9 @@ export const statisticsService = {
   },
   
   // 获取总分分布数据
-  getScoreDistribution: async (filters) => {
+  getScoreDistribution: async (filters = {}) => {
     try {
-      const response = await apiClient.get('/statistics/score-distribution', {
+      const response = await apiClient.get('/physical-tests/score-distribution', {
         params: filters
       })
       return response
@@ -64,9 +29,9 @@ export const statisticsService = {
   },
   
   // 获取等级分布数据
-  getGradeDistribution: async (filters) => {
+  getGradeDistribution: async (filters = {}) => {
     try {
-      const response = await apiClient.get('/statistics/grade-distribution', {
+      const response = await apiClient.get('/physical-tests/grade-distribution', {
         params: filters
       })
       return response
@@ -77,9 +42,9 @@ export const statisticsService = {
   },
   
   // 获取年级成绩对比数据
-  getGradeComparison: async (filters) => {
+  getGradeComparison: async (filters = {}) => {
     try {
-      const response = await apiClient.get('/statistics/grade-comparison', {
+      const response = await apiClient.get('/physical-tests/grade-comparison', {
         params: filters
       })
       return response
@@ -90,9 +55,9 @@ export const statisticsService = {
   },
   
   // 获取性别成绩对比数据
-  getGenderComparison: async (filters) => {
+  getGenderComparison: async (filters = {}) => {
     try {
-      const response = await apiClient.get('/statistics/gender-comparison', {
+      const response = await apiClient.get('/physical-tests/gender-comparison', {
         params: filters
       })
       return response
@@ -103,9 +68,9 @@ export const statisticsService = {
   },
   
   // 获取单项成绩分析数据
-  getItemAnalysis: async (filters) => {
+  getItemAnalysis: async (filters = {}) => {
     try {
-      const response = await apiClient.get('/statistics/item-analysis', {
+      const response = await apiClient.get('/physical-tests/item-analysis', {
         params: filters
       })
       return response
@@ -115,47 +80,29 @@ export const statisticsService = {
     }
   },
   
-  // 导出统计结果
-  exportStatistics: async (filters, format) => {
+  // 获取体测历史数据
+  getTestHistory: async (filters = {}) => {
     try {
-      const response = await apiClient.get('/statistics/export', {
-        params: { ...filters, format },
-        responseType: 'blob'
+      const response = await apiClient.get('/physical-tests/history', {
+        params: filters
       })
       return response
     } catch (error) {
-      console.error('导出统计结果失败:', error)
+      console.error('获取体测历史数据失败:', error)
       throw error
     }
   },
   
-  // 导出图表
-  exportChart: async (chartData, format) => {
+  // 获取体测记录列表
+  getTests: async (params = {}) => {
     try {
-      const response = await apiClient.post('/statistics/export-chart', {
-        chartData,
-        format
-      }, {
-        responseType: 'blob'
-      })
+      const response = await apiClient.get('/physical-tests', { params })
       return response
     } catch (error) {
-      console.error('导出图表失败:', error)
-      throw error
-    }
-  },
-  
-  // 导出完整报告
-  exportReport: async (filters, format) => {
-    try {
-      const response = await apiClient.get('/statistics/export-report', {
-        params: { ...filters, format },
-        responseType: 'blob'
-      })
-      return response
-    } catch (error) {
-      console.error('导出完整报告失败:', error)
+      console.error('获取体测记录列表失败:', error)
       throw error
     }
   }
 }
+
+export default statisticsService

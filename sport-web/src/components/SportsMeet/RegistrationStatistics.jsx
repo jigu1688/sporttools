@@ -1,7 +1,8 @@
-import React, { useState, useMemo } from 'react'
-import { Card, Row, Col, Table, Button, Select, Space, Typography, message, Tag } from 'antd'
+import React, { useState, useMemo, useEffect } from 'react'
+import { Card, Row, Col, Table, Button, Select, Space, Typography, message, Tag, Spin } from 'antd'
 import { DownloadOutlined, BarChartOutlined, PieChartOutlined } from '@ant-design/icons'
-import { useSelector } from 'react-redux'
+import { useSelector, useDispatch } from 'react-redux'
+import { fetchRegistrationStatistics } from '../../store/sportsMeetSlice'
 import * as XLSX from 'xlsx'
 
 const { Title, Text } = Typography
@@ -9,14 +10,32 @@ const { Option } = Select
 
 const RegistrationStatistics = () => {
   const [statisticsType, setStatisticsType] = useState('project') // project, class, gender, grade
+  const [selectedSportsMeetId, setSelectedSportsMeetId] = useState(null)
   
-  const { events, registrations } = useSelector(state => state.sportsMeet)
+  const dispatch = useDispatch()
+  const { events, registrations, sportsMeets, loading, error } = useSelector(state => state.sportsMeet)
   const { classes } = useSelector(state => state.data) // 复用班级数据
+  
+  // 获取报名统计数据
+  useEffect(() => {
+    if (sportsMeets && sportsMeets.length > 0) {
+      // 默认使用第一个运动会的ID
+      const defaultSportsMeetId = sportsMeets[0].id
+      setSelectedSportsMeetId(defaultSportsMeetId)
+      dispatch(fetchRegistrationStatistics(defaultSportsMeetId))
+    }
+  }, [dispatch, sportsMeets])
+  
+  // 当选择不同的运动会时，重新获取统计数据
+  const handleSportsMeetChange = (value) => {
+    setSelectedSportsMeetId(value)
+    dispatch(fetchRegistrationStatistics(value))
+  }
   
   // 使用useMemo计算统计数据
   const projectStats = useMemo(() => {
-    return events.map(event => {
-      const eventRegistrations = registrations.filter(reg => reg.eventId === event.id)
+    return Array.isArray(events) && events.length > 0 ? events.map(event => {
+      const eventRegistrations = Array.isArray(registrations) ? registrations.filter(reg => reg.eventId === event.id) : []
       return {
         eventId: event.id,
         eventName: event.name,
@@ -27,16 +46,16 @@ const RegistrationStatistics = () => {
         pending: eventRegistrations.filter(reg => reg.status === '待审核').length,
         rejected: eventRegistrations.filter(reg => reg.status === '已拒绝').length
       }
-    })
+    }) : []
   }, [events, registrations])
   
   const classStats = useMemo(() => {
-    return classes.map(cls => {
-      const classRegistrations = registrations.filter(reg => {
+    return Array.isArray(classes) && classes.length > 0 ? classes.map(cls => {
+      const classRegistrations = Array.isArray(registrations) ? registrations.filter(reg => {
         // 使用classId进行精确匹配，同时兼容旧数据
         const regClassId = typeof reg.classId === 'number' ? reg.classId : parseInt(reg.classId);
         return regClassId === cls.id || reg.className === cls.className;
-      });
+      }) : [];
       return {
         className: cls.className,
         grade: cls.grade,
@@ -45,13 +64,14 @@ const RegistrationStatistics = () => {
         female: classRegistrations.filter(reg => reg.gender === '女' || reg.gender === 'female').length,
         approved: classRegistrations.filter(reg => reg.status === '已通过').length
       }
-    }).filter(cls => cls.total > 0) // 只显示有报名的班级
+    }).filter(cls => cls.total > 0) : [] // 只显示有报名的班级
   }, [classes, registrations])
   
   const genderStats = useMemo(() => {
-    const totalRegistrations = registrations.length
-    const maleCount = registrations.filter(reg => reg.gender === '男' || reg.gender === 'male').length
-    const femaleCount = registrations.filter(reg => reg.gender === '女' || reg.gender === 'female').length
+    const safeRegistrations = Array.isArray(registrations) ? registrations : []
+    const totalRegistrations = safeRegistrations.length
+    const maleCount = safeRegistrations.filter(reg => reg.gender === '男' || reg.gender === 'male').length
+    const femaleCount = safeRegistrations.filter(reg => reg.gender === '女' || reg.gender === 'female').length
     return [
       { gender: '男', count: maleCount, percentage: totalRegistrations > 0 ? ((maleCount / totalRegistrations) * 100).toFixed(1) + '%' : '0%' },
       { gender: '女', count: femaleCount, percentage: totalRegistrations > 0 ? ((femaleCount / totalRegistrations) * 100).toFixed(1) + '%' : '0%' }
@@ -60,7 +80,8 @@ const RegistrationStatistics = () => {
   
   const gradeStats = useMemo(() => {
     const gradeMap = {}
-    registrations.forEach(reg => {
+    const safeRegistrations = Array.isArray(registrations) ? registrations : []
+    safeRegistrations.forEach(reg => {
       if (!gradeMap[reg.grade]) {
         gradeMap[reg.grade] = { grade: reg.grade, total: 0, male: 0, female: 0 }
       }
@@ -81,7 +102,7 @@ const RegistrationStatistics = () => {
     
     switch (statisticsType) {
       case 'project':
-        exportData = projectStats.map(stat => ({
+        exportData = (projectStats || []).map(stat => ({
           '项目名称': stat.eventName,
           '总报名数': stat.total,
           '男生': stat.male,
@@ -93,7 +114,7 @@ const RegistrationStatistics = () => {
         fileName = '项目报名统计'
         break
       case 'class':
-        exportData = classStats.map(stat => ({
+        exportData = (classStats || []).map(stat => ({
           '年级': stat.grade,
           '班级': stat.className,
           '总报名数': stat.total,
@@ -104,7 +125,7 @@ const RegistrationStatistics = () => {
         fileName = '班级报名统计'
         break
       case 'gender':
-        exportData = genderStats.map(stat => ({
+        exportData = (genderStats || []).map(stat => ({
           '性别': stat.gender,
           '报名数': stat.count,
           '占比': stat.percentage
@@ -112,7 +133,7 @@ const RegistrationStatistics = () => {
         fileName = '性别报名统计'
         break
       case 'grade':
-        exportData = gradeStats.map(stat => ({
+        exportData = (gradeStats || []).map(stat => ({
           '年级': stat.grade,
           '总报名数': stat.total,
           '男生': stat.male,
@@ -121,8 +142,10 @@ const RegistrationStatistics = () => {
         fileName = '年级报名统计'
         break
       default:
-        exportData = registrations.map(reg => {
-          const event = events.find(e => e.id === reg.eventId)
+        const safeRegistrations = Array.isArray(registrations) ? registrations : []
+        const safeEvents = Array.isArray(events) ? events : []
+        exportData = safeRegistrations.map(reg => {
+          const event = safeEvents.find(e => e.id === reg.eventId) || null
           return {
             '项目名称': event?.name || '',
             '学生姓名': reg.studentName,
@@ -206,71 +229,88 @@ const RegistrationStatistics = () => {
     <div>
       <Space orientation="horizontal" size="middle" style={{ marginBottom: 16 }}>
         <Title level={4} style={{ marginBottom: 0 }}>报名统计</Title>
-        <Button 
-          type="primary" 
-          icon={<DownloadOutlined />} 
-          onClick={exportToExcel}
-        >
-          导出数据
-        </Button>
-      </Space>
-      
-      <div style={{ marginBottom: 24 }}>
-        <Text strong>统计类型：</Text>
+        <Select
+          placeholder="选择运动会"
+          style={{ width: 200 }}
+          value={selectedSportsMeetId}
+          onChange={handleSportsMeetChange}
+          loading={loading}
+          options={sportsMeets && sportsMeets.length > 0 ? sportsMeets.map(sm => ({
+            label: sm.name,
+            value: sm.id
+          })) : []}
+        />
         <Select 
           value={statisticsType} 
           onChange={setStatisticsType} 
-          style={{ width: 180, marginLeft: 16 }}
+          style={{ width: 180 }}
         >
           <Option value="project">按项目统计</Option>
           <Option value="class">按班级统计</Option>
           <Option value="gender">按性别统计</Option>
           <Option value="grade">按年级统计</Option>
         </Select>
-      </div>
+        <Button 
+          type="primary" 
+          icon={<DownloadOutlined />} 
+          onClick={exportToExcel}
+          loading={loading}
+        >
+          导出数据
+        </Button>
+      </Space>
+      
+      {error && (
+        <div style={{ marginBottom: 24, color: 'red' }}>
+          加载失败: {error}
+        </div>
+      )}
       
       {/* 统计卡片 */}
-      <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
-        <Col xs={24} sm={12} md={6}>
-          <Card title="总报名人数" bordered={false}>
-            <Text strong style={{ fontSize: 24 }}>{registrations.length}</Text>
-          </Card>
-        </Col>
-        <Col xs={24} sm={12} md={6}>
-          <Card title="已通过人数" bordered={false}>
-            <Text strong style={{ fontSize: 24, color: '#52c41a' }}>
-              {registrations.filter(reg => reg.status === '已通过').length}
-            </Text>
-          </Card>
-        </Col>
-        <Col xs={24} sm={12} md={6}>
-          <Card title="待审核人数" bordered={false}>
-            <Text strong style={{ fontSize: 24, color: '#1890ff' }}>
-              {registrations.filter(reg => reg.status === '待审核').length}
-            </Text>
-          </Card>
-        </Col>
-        <Col xs={24} sm={12} md={6}>
-          <Card title="已拒绝人数" bordered={false}>
-            <Text strong style={{ fontSize: 24, color: '#ff4d4f' }}>
-              {registrations.filter(reg => reg.status === '已拒绝').length}
-            </Text>
-          </Card>
-        </Col>
-      </Row>
-      
-      {/* 统计表格 */}
-      <Card title={`${statisticsType === 'project' ? '项目' : statisticsType === 'class' ? '班级' : statisticsType === 'gender' ? '性别' : '年级'}报名统计`}>
-        <Table
-          columns={currentColumns}
-          dataSource={currentStats}
-          rowKey={statisticsType === 'project' ? 'eventId' : statisticsType === 'class' ? 'className' : 'gender'}
-          bordered
-          pagination={{
-            pageSize: 10
-          }}
-        />
-      </Card>
+      <Spin spinning={loading}>
+        <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
+          <Col xs={24} sm={12} md={6}>
+            <Card title="总报名人数" bordered={false}>
+              <Text strong style={{ fontSize: 24 }}>{registrations?.length || 0}</Text>
+            </Card>
+          </Col>
+          <Col xs={24} sm={12} md={6}>
+            <Card title="已通过人数" bordered={false}>
+              <Text strong style={{ fontSize: 24, color: '#52c41a' }}>
+                {(registrations || []).filter(reg => reg.status === '已通过').length}
+              </Text>
+            </Card>
+          </Col>
+          <Col xs={24} sm={12} md={6}>
+            <Card title="待审核人数" bordered={false}>
+              <Text strong style={{ fontSize: 24, color: '#1890ff' }}>
+                {(registrations || []).filter(reg => reg.status === '待审核').length}
+              </Text>
+            </Card>
+          </Col>
+          <Col xs={24} sm={12} md={6}>
+            <Card title="已拒绝人数" bordered={false}>
+              <Text strong style={{ fontSize: 24, color: '#ff4d4f' }}>
+                {(registrations || []).filter(reg => reg.status === '已拒绝').length}
+              </Text>
+            </Card>
+          </Col>
+        </Row>
+        
+        {/* 统计表格 */}
+        <Card title={`${statisticsType === 'project' ? '项目' : statisticsType === 'class' ? '班级' : statisticsType === 'gender' ? '性别' : '年级'}报名统计`}>
+          <Table
+            columns={currentColumns}
+            dataSource={currentStats}
+            rowKey={statisticsType === 'project' ? 'eventId' : statisticsType === 'class' ? 'className' : 'gender'}
+            bordered
+            pagination={{
+              pageSize: 10
+            }}
+            locale={{ emptyText: '暂无统计数据' }}
+          />
+        </Card>
+      </Spin>
       
       {/* 数据可视化（简化版，实际项目中可使用ECharts或Ant Design Charts） */}
       <div style={{ marginTop: 32 }}>

@@ -4,20 +4,16 @@ from sqlalchemy.orm import Session
 from typing import List, Optional
 from database import get_db
 from crud import class_crud, school_crud
-from schemas import ClassCreate, ClassResponse, BaseResponse
-from auth import get_current_user, require_permissions, PermissionType
+from schemas import ClassCreate, ClassUpdate, ClassResponse, BaseResponse
+from auth import (
+    get_current_user,
+    require_permissions,
+    require_permissions_dependency,
+    PermissionType,
+)
 from models import User
 
-router = APIRouter(prefix="/api/v1/classes", tags=["classes"])
-
-# 依赖注入：获取数据库会话
-def get_db():
-    from database import SessionLocal
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
+router = APIRouter(tags=["classes"])
 
 # 获取班级列表
 @router.get("", response_model=List[ClassResponse])
@@ -66,7 +62,9 @@ async def get_class(
 async def create_class(
     class_data: ClassCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_permissions([PermissionType.CLASS_MANAGE]))
+    current_user: User = Depends(
+        require_permissions_dependency([PermissionType.CLASS_MANAGE])
+    )
 ):
     """创建班级"""
     try:
@@ -98,9 +96,11 @@ async def create_class(
 @router.put("/{class_id}", response_model=ClassResponse)
 async def update_class(
     class_id: int,
-    class_data: ClassCreate,
+    class_data: ClassUpdate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_permissions([PermissionType.CLASS_MANAGE]))
+    current_user: User = Depends(
+        require_permissions_dependency([PermissionType.CLASS_MANAGE])
+    )
 ):
     """更新班级信息"""
     try:
@@ -112,8 +112,11 @@ async def update_class(
                 detail="班级不存在"
             )
         
+        # 只更新提供的字段
+        update_data = class_data.dict(exclude_unset=True)
+        
         # 更新班级信息
-        updated_class = class_crud.update_class(db, class_id, class_data.dict())
+        updated_class = class_crud.update_class(db, class_id, update_data)
         if not updated_class:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -133,8 +136,11 @@ async def update_class(
 @router.delete("/{class_id}", response_model=BaseResponse)
 async def delete_class(
     class_id: int,
+    force: bool = Query(False, description="是否强制删除（即使班级中有学生）"),
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_permissions([PermissionType.CLASS_MANAGE]))
+    current_user: User = Depends(
+        require_permissions_dependency([PermissionType.CLASS_MANAGE])
+    )
 ):
     """删除班级"""
     try:
@@ -147,14 +153,14 @@ async def delete_class(
             )
         
         # 删除班级
-        success = class_crud.delete_class(db, class_id)
-        if not success:
+        result = class_crud.delete_class(db, class_id, force=force)
+        if not result.get("success"):
             raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="删除班级失败"
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=result.get("message", "删除班级失败")
             )
         
-        return {"message": "班级删除成功"}
+        return {"message": result.get("message", "班级删除成功")}
     except HTTPException:
         raise
     except Exception as e:
@@ -199,7 +205,9 @@ async def assign_teacher_to_class(
     teacher_id: int = Query(..., description="教师ID"),
     is_main_teacher: bool = Query(True, description="是否为主班主任"),
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_permissions([PermissionType.CLASS_MANAGE]))
+    current_user: User = Depends(
+        require_permissions_dependency([PermissionType.CLASS_MANAGE])
+    )
 ):
     """分配教师到班级"""
     try:

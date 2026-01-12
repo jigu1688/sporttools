@@ -3,7 +3,7 @@
 
 from sqlalchemy.orm import Session
 from models import Token
-from datetime import datetime
+from datetime import datetime, timezone
 
 class TokenCRUD:
     """令牌CRUD操作类"""
@@ -78,7 +78,7 @@ class TokenCRUD:
     def clean_expired_tokens(db: Session) -> int:
         """清理过期令牌"""
         deleted = db.query(Token).filter(
-            Token.expires_at < datetime.utcnow()
+            Token.expires_at < datetime.now(timezone.utc)
         ).delete()
         db.commit()
         return deleted
@@ -87,7 +87,7 @@ class TokenCRUD:
     def clean_expired_refresh_tokens(db: Session) -> int:
         """清理过期的刷新令牌"""
         deleted = db.query(Token).filter(
-            Token.refresh_expires_at < datetime.utcnow()
+            Token.refresh_expires_at < datetime.now(timezone.utc)
         ).delete()
         db.commit()
         return deleted

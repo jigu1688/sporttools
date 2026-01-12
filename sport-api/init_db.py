@@ -197,7 +197,7 @@ def check_database_connection():
 def main():
     """主函数"""
     print("=" * 60)
-    print("🏃‍♂️ 体育教学管理系统 - 数据库初始化")
+    print(">>> 体育教学管理系统 - 数据库初始化")
     print("=" * 60)
     
     # 检查数据库连接
@@ -213,11 +213,11 @@ def main():
         sys.exit(1)
     
     print("\n" + "=" * 60)
-    print("🎉 数据库初始化完成！")
+    print("[SUCCESS] 数据库初始化完成！")
     print("=" * 60)
-    print("\n📋 后续步骤:")
+    print("\n[INFO] 后续步骤:")
     print("1. 运行: python main.py 启动API服务器")
-    print("2. 访问: http://localhost:8001/docs 查看API文档")
+    print("2. 访问: http://localhost:8002/docs 查看API文档")
     print("3. 开始开发各个功能模块")
 
 if __name__ == "__main__":

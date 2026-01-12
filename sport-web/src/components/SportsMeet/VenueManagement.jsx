@@ -1,8 +1,8 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { Table, Button, Modal, Form, Input, Select, Space, Typography, message } from 'antd'
 import { EditOutlined, DeleteOutlined, PlusOutlined, EyeOutlined } from '@ant-design/icons'
 import { useSelector, useDispatch } from 'react-redux'
-import { setVenues, addVenue, updateVenue, deleteVenue } from '../../store/sportsMeetSlice'
+import { fetchVenues, createVenue, updateVenueById, deleteVenueById } from '../../store/sportsMeetSlice'
 
 const { Title } = Typography
 
@@ -17,19 +17,10 @@ const VenueManagement = () => {
   const { venues } = useSelector(state => state.sportsMeet)
   
   // 初始化数据
-  React.useEffect(() => {
-    const mockData = [
-      { id: '1', name: '田径场1号跑道', type: 'track', capacity: 8, status: '可用' },
-      { id: '2', name: '田径场2号跑道', type: 'track', capacity: 8, status: '可用' },
-      { id: '3', name: '跳远沙坑', type: 'field', capacity: 1, status: '可用' },
-      { id: '4', name: '铅球场地', type: 'field', capacity: 1, status: '可用' },
-      { id: '5', name: '篮球场1', type: 'court', capacity: 2, status: '可用' },
-      { id: '6', name: '篮球场2', type: 'court', capacity: 2, status: '可用' }
-    ]
-    if (venues.length === 0) {
-      dispatch(setVenues(mockData))
-    }
-  }, [venues, dispatch])
+  useEffect(() => {
+    // 从API获取场馆数据
+    dispatch(fetchVenues())
+  }, [dispatch])
   
   // 显示创建/编辑模态框
   const showModal = (record = null) => {
@@ -56,48 +47,49 @@ const VenueManagement = () => {
   }
   
   // 保存场地
-  const handleOk = () => {
-    form.validateFields()
-      .then(values => {
-        const venueData = {
-          name: values.name,
-          type: values.type,
-          capacity: values.capacity,
-          status: values.status
-        }
-        
-        if (editingId) {
-          // 更新场地
-          const updatedVenue = { ...venueData, id: editingId }
-          dispatch(updateVenue(updatedVenue))
-          message.success('场地更新成功')
-        } else {
-          // 创建场地
-          const newVenue = { ...venueData, id: Date.now().toString() }
-          dispatch(addVenue(newVenue))
-          message.success('场地创建成功')
-        }
-        
-        setIsModalVisible(false)
-        setEditingId(null)
-        form.resetFields()
-      })
-      .catch(info => {
-        // console.log('表单验证失败:', info)
-      })
+  const handleOk = async () => {
+    try {
+      const values = await form.validateFields()
+      const venueData = {
+        name: values.name,
+        type: values.type,
+        capacity: Number(values.capacity),
+        status: values.status
+      }
+      
+      if (editingId) {
+        // 更新场地
+        await dispatch(updateVenueById({ venueId: editingId, venueData })).unwrap()
+        message.success('场地更新成功')
+      } else {
+        // 创建场地
+        await dispatch(createVenue(venueData)).unwrap()
+        message.success('场地创建成功')
+      }
+      
+      setIsModalVisible(false)
+      setEditingId(null)
+      form.resetFields()
+    } catch (error) {
+      message.error(error || '操作失败，请重试')
+    }
   }
   
   // 删除场地
-  const handleDelete = (id) => {
+  const handleDelete = async (id) => {
     Modal.confirm({
       title: '确认删除',
       content: '您确定要删除这个场地吗？',
       okText: '确认',
       okType: 'danger',
       cancelText: '取消',
-      onOk: () => {
-        dispatch(deleteVenue(id))
-        message.success('场地删除成功')
+      onOk: async () => {
+        try {
+          await dispatch(deleteVenueById(id)).unwrap()
+          message.success('场地删除成功')
+        } catch (error) {
+          message.error(error || '删除失败，请重试')
+        }
       }
     })
   }

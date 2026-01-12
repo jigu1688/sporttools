@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { Table, Button, Modal, Form, Input, Select, Space, Typography, message, Tabs, Tag, InputNumber } from 'antd'
 import { PlusOutlined, EditOutlined, DeleteOutlined, SaveOutlined } from '@ant-design/icons'
 import { useSelector, useDispatch } from 'react-redux'
-import { setResults, addResult, updateResult, deleteResult } from '../../store/sportsMeetSlice'
+import { fetchResults, createResult, updateResultById, deleteResultById } from '../../store/sportsMeetSlice'
 
 const { Title, Text } = Typography
 const { Option } = Select
@@ -30,22 +30,22 @@ const ResultRecord = () => {
   const { results, schedules, events, registrations, sportsMeets } = useSelector(state => state.sportsMeet)
   
   // 获取所有年级选项
-  const gradeOptions = [...new Set(schedules.map(schedule => schedule.grade))].map(grade => ({
+  const gradeOptions = Array.isArray(schedules) && schedules.length > 0 ? [...new Set(schedules.map(schedule => schedule.grade))].map(grade => ({
     value: grade,
     label: grade
-  }))
+  })) : []
   
   // 获取所有班级选项
-  const classOptions = [...new Set(schedules.map(schedule => schedule.className))].map(className => ({
+  const classOptions = Array.isArray(schedules) && schedules.length > 0 ? [...new Set(schedules.map(schedule => schedule.className))].map(className => ({
     value: className,
     label: className
-  }))
+  })) : []
   
   // 获取所有项目选项
-  const eventOptions = events.map(event => ({
+  const eventOptions = Array.isArray(events) ? events.map(event => ({
     value: event.id,
     label: event.name
-  }))
+  })) : []
   
   // 处理筛选条件变化
   const handleFilterChange = (changedValues) => {
@@ -93,22 +93,24 @@ const ResultRecord = () => {
     const classScores = {}
     
     // 按班级和年级分组计算积分
-    results.forEach(result => {
-      const { grade, className, points } = result
-      const key = `${grade}-${className}`
-      
-      if (!classScores[key]) {
-        classScores[key] = {
-          grade,
-          className,
-          totalPoints: 0,
-          eventCount: 0
+    if (results && results.length > 0) {
+      results.forEach(result => {
+        const { grade, className, points } = result
+        const key = `${grade}-${className}`
+        
+        if (!classScores[key]) {
+          classScores[key] = {
+            grade,
+            className,
+            totalPoints: 0,
+            eventCount: 0
+          }
         }
-      }
-      
-      classScores[key].totalPoints += parseInt(points) || 0
-      classScores[key].eventCount += 1
-    })
+        
+        classScores[key].totalPoints += parseInt(points) || 0
+        classScores[key].eventCount += 1
+      })
+    }
     
     // 转换为数组并按年级和积分排序
     const classScoresArray = Object.values(classScores)
@@ -182,52 +184,20 @@ const ResultRecord = () => {
     }
   ]
   
-  // 初始化模拟成绩数据
+  // 初始化真实成绩数据
   useEffect(() => {
-    if (results.length === 0) {
-      const mockResults = [
-        {
-          id: '1',
-          scheduleId: '1',
-          registrationId: '1',
-          eventId: '1',
-          studentName: '张三',
-          className: '一年级1班',
-          grade: '一年级',
-          gender: '男',
-          competitionNumber: '1111',
-          result: '8.5',
-          unit: '秒',
-          ranking: '1',
-          points: '10',
-          status: '已确认'
-        },
-        {
-          id: '2',
-          scheduleId: '1',
-          registrationId: '2',
-          eventId: '1',
-          studentName: '李四',
-          className: '一年级1班',
-          grade: '一年级',
-          gender: '男',
-          competitionNumber: '1112',
-          result: '8.8',
-          unit: '秒',
-          ranking: '2',
-          points: '8',
-          status: '已确认'
-        }
-      ]
-      dispatch(setResults(mockResults))
+    // 当有运动会和项目数据时，获取成绩数据
+    if (sportsMeets && sportsMeets.length > 0) {
+      const selectedSportsMeetId = sportsMeets[0].id // 默认选择第一个运动会
+      dispatch(fetchResults({ sportsMeetId: selectedSportsMeetId }))
     }
-  }, [results, dispatch])
+  }, [sportsMeets, dispatch])
   
   // 显示成绩记录模态框
   const showModal = (schedule) => {
     setSelectedSchedule(schedule)
     // 初始化分组成绩
-    if (schedule.groupDetails) {
+    if (schedule.groupDetails && Array.isArray(schedule.groupDetails.athletes)) {
       const initialGroupResults = schedule.groupDetails.athletes.map(athlete => {
         // 检查是否已有成绩记录
         const existingResult = results.find(result => result.registrationId === athlete.id)
@@ -343,8 +313,21 @@ const ResultRecord = () => {
     message.success('已自动计算排名和积分')
   }
   
+  // 删除成绩
+  const handleDeleteResult = async (record) => {
+    try {
+      if (sportsMeets && sportsMeets.length > 0) {
+        const selectedSportsMeetId = sportsMeets[0].id // 默认选择第一个运动会
+        await dispatch(deleteResultById({ sportsMeetId: selectedSportsMeetId, resultId: record.id })).unwrap()
+        message.success('成绩删除成功')
+      }
+    } catch (error) {
+      message.error(error || '成绩删除失败')
+    }
+  }
+
   // 保存成绩
-  const handleSaveResults = () => {
+  const handleSaveResults = async () => {
     if (!selectedSchedule) return
     
     // 验证成绩数据
@@ -354,42 +337,62 @@ const ResultRecord = () => {
       return
     }
     
-    // 保存成绩
-    const savedResults = []
-    groupResults.forEach(result => {
-      // 检查是否已有成绩记录
-      const existingResultIndex = results.findIndex(r => r.registrationId === result.registrationId)
-      
-      const resultData = {
-        id: existingResultIndex >= 0 ? results[existingResultIndex].id : Date.now().toString() + '_' + Math.random().toString(36).substr(2, 9),
-        scheduleId: selectedSchedule.id,
-        registrationId: result.registrationId,
-        eventId: selectedSchedule.eventId,
-        studentName: result.studentName,
-        className: result.className,
-        grade: selectedSchedule.grade,
-        gender: selectedSchedule.gender,
-        competitionNumber: result.competitionNumber,
-        result: result.result,
-        unit: result.unit,
-        ranking: result.ranking,
-        points: result.points,
-        status: result.status
-      }
-      
-      if (existingResultIndex >= 0) {
-        // 更新现有成绩
-        dispatch(updateResult(resultData))
-      } else {
-        // 添加新成绩
-        dispatch(addResult(resultData))
-      }
-      
-      savedResults.push(resultData)
-    })
+    if (!sportsMeets || sportsMeets.length === 0) {
+      message.error('请先选择运动会')
+      return
+    }
     
-    message.success(`成功保存 ${savedResults.length} 条成绩记录`)
-    handleCancel()
+    const selectedSportsMeetId = sportsMeets[0].id // 默认选择第一个运动会
+    
+    try {
+      // 保存成绩
+      const savedResults = []
+      for (const result of groupResults) {
+        // 检查是否已有成绩记录
+        const existingResultIndex = results.findIndex(r => r.registrationId === result.registrationId)
+        
+        const resultData = {
+          scheduleId: selectedSchedule.id,
+          registrationId: result.registrationId,
+          eventId: selectedSchedule.eventId,
+          studentName: result.studentName,
+          className: result.className,
+          grade: selectedSchedule.grade,
+          gender: selectedSchedule.gender,
+          competitionNumber: result.competitionNumber,
+          result: result.result,
+          unit: result.unit,
+          ranking: result.ranking,
+          points: result.points,
+          status: result.status
+        }
+        
+        if (existingResultIndex >= 0) {
+          // 更新现有成绩
+          await dispatch(updateResultById({ 
+            sportsMeetId: selectedSportsMeetId, 
+            resultId: results[existingResultIndex].id, 
+            resultData 
+          })).unwrap()
+        } else {
+          // 添加新成绩
+          await dispatch(createResult({ 
+            sportsMeetId: selectedSportsMeetId, 
+            resultData 
+          })).unwrap()
+        }
+        
+        savedResults.push(resultData)
+      }
+      
+      message.success(`成功保存 ${savedResults.length} 条成绩记录`)
+      handleCancel()
+      
+      // 重新获取成绩列表
+      dispatch(fetchResults({ sportsMeetId: selectedSportsMeetId }))
+    } catch (error) {
+      message.error(error || '成绩保存失败')
+    }
   }
   
   // 更新分组成绩
@@ -496,7 +499,7 @@ const ResultRecord = () => {
           <Button type="link" icon={<EditOutlined />} onClick={() => showModal(record)}>
             编辑
           </Button>
-          <Button type="link" danger icon={<DeleteOutlined />} onClick={() => dispatch(deleteResult(record.id))}>
+          <Button type="link" danger icon={<DeleteOutlined />} onClick={() => handleDeleteResult(record)}>
             删除
           </Button>
         </Space>
@@ -517,14 +520,13 @@ const ResultRecord = () => {
       
       {/* 选择运动会 */}
       <div style={{ marginBottom: 24 }}>
-        <Form form={form} layout="inline">
+        <Form form={form} layout="inline" initialValues={{ sportsMeetId: '1' }}>
           <Form.Item label="选择运动会" name="sportsMeetId">
             <Select 
               placeholder="请选择运动会" 
               style={{ width: 200 }}
-              defaultValue="1" // 默认选择第一个运动会
             >
-              {sportsMeets.map(meet => (
+              {Array.isArray(sportsMeets) && sportsMeets.map(meet => (
                 <Option key={meet.id} value={meet.id}>{meet.name}</Option>
               ))}
             </Select>
@@ -594,7 +596,7 @@ const ResultRecord = () => {
             )
           }
         ]}
-        dataSource={schedules}
+        dataSource={Array.isArray(schedules) ? schedules : []}
         rowKey="id"
         bordered
         pagination={{ pageSize: 10 }}

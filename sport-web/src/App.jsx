@@ -2,6 +2,7 @@ import { Routes, Route, Navigate } from 'react-router-dom'
 import './App.css'
 import Layout from './components/Layout/Layout'
 import { useSelector } from 'react-redux'
+import { useEffect, useState } from 'react'
 
 // 页面组件
 import Login from './pages/Login'
@@ -19,6 +20,7 @@ import PhysicalTestDashboard from './pages/PhysicalTest/Dashboard'
 import TestItems from './pages/PhysicalTest/TestItems'
 import ScoreManagementPage from './pages/PhysicalTest/ScoreManagementPage'
 import StatisticsPage from './pages/PhysicalTest/StatisticsPage'
+import ScoreStandardsPage from './pages/PhysicalTest/ScoreStandardsPage'
 
 // 运动会编排系统页面组件
 import SportsMeetDashboard from './pages/SportsMeet/Dashboard'
@@ -36,9 +38,19 @@ import TestComponent from './pages/SportsMeet/TestComponent'
 
 // 保护路由组件
 const ProtectedRoute = ({ children }) => {
-  const { isAuthenticated } = useSelector(state => state.auth);
-
-  if (!isAuthenticated) {
+  // 直接从 localStorage 检查认证状态，不依赖 Redux
+  const authData = localStorage.getItem('auth');
+  
+  if (!authData) {
+    return <Navigate to="/login" />;
+  }
+  
+  try {
+    const parsed = JSON.parse(authData);
+    if (!parsed.token) {
+      return <Navigate to="/login" />;
+    }
+  } catch (e) {
     return <Navigate to="/login" />;
   }
 
@@ -67,6 +79,7 @@ function App() {
         <Route path="/physical-test/test-items" element={<ProtectedRoute><Layout><TestItems /></Layout></ProtectedRoute>} />
         <Route path="/physical-test/score-management" element={<ProtectedRoute><Layout><ScoreManagementPage /></Layout></ProtectedRoute>} />
         <Route path="/physical-test/statistics" element={<ProtectedRoute><Layout><StatisticsPage /></Layout></ProtectedRoute>} />
+        <Route path="/physical-test/score-standards" element={<ProtectedRoute><Layout><ScoreStandardsPage /></Layout></ProtectedRoute>} />
         
         {/* 运动会编排系统路由 */}
         <Route path="/sports-meet" element={<ProtectedRoute><Layout><SportsMeetDashboard /></Layout></ProtectedRoute>} />

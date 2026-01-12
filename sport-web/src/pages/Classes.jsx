@@ -1,8 +1,17 @@
-import { useState } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Table, Button, Modal, Form, Input, Select, message, Card, Space, Typography, InputNumber } from 'antd'
 import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons'
 import { useSelector, useDispatch } from 'react-redux'
-import { addClass, updateClass, deleteClass } from '../store/dataSlice'
+import { 
+  addClass, 
+  updateClass, 
+  deleteClass,
+  fetchClasses,
+  createClassAPI,
+  updateClassAPI,
+  deleteClassAPI
+} from '../store/dataSlice'
+import apiClient from '../utils/apiClient'
 
 const { Title } = Typography
 const { Option } = Select
@@ -14,15 +23,55 @@ const Classes = () => {
   const [isModalVisible, setIsModalVisible] = useState(false)
   const [form] = Form.useForm()
   const [editingId, setEditingId] = useState(null)
-
+  
+  // 定义fetchData函数
+  const fetchData = useCallback(async () => {
+    try {
+      setLoading(true)
+      await dispatch(fetchClasses()).unwrap()
+    } catch (error) {
+      console.error('获取班级列表失败:', error)
+      message.error(error?.message || '获取班级列表失败')
+    } finally {
+      setLoading(false)
+    }
+  }, [dispatch])
+  
+  // 获取班级列表（只要有 localStorage token 就加载）
+  useEffect(() => {
+    const authData = localStorage.getItem('auth');
+    if (authData) {
+      try {
+        const parsed = JSON.parse(authData);
+        if (parsed.token) {
+          fetchData();
+        }
+      } catch (e) {
+        console.error('Failed to parse auth data:', e);
+      }
+    }
+  }, [fetchData])
+  
   // 显示添加/编辑弹窗
   const showModal = (record = null) => {
     if (record) {
       setEditingId(record.id)
-      form.setFieldsValue(record)
+      form.setFieldsValue({
+        grade: record.grade,
+        className: record.className,
+        coach: record.coach,
+        physicalTeacher: record.physicalTeacher,
+        maxStudentCount: record.maxStudentCount || 60,
+        status: record.status || 'active'
+      })
     } else {
       setEditingId(null)
       form.resetFields()
+      // 设置默认值
+      form.setFieldsValue({
+        maxStudentCount: 60,
+        status: 'active'
+      })
     }
     setIsModalVisible(true)
   }
@@ -38,30 +87,68 @@ const Classes = () => {
     form.validateFields()
       .then(values => {
         setLoading(true)
-        // 模拟API请求
-        setTimeout(() => {
-          if (editingId) {
-            // 编辑班级
-            dispatch(updateClass({
-              ...values,
-              id: editingId
-            }))
-            message.success('班级更新成功')
-          } else {
-            // 添加班级
-            const newClass = {
-              ...values,
-              id: classes.length + 1,
-              studentCount: 0,
-              status: 'active'
-            }
-            dispatch(addClass(newClass))
-            message.success('班级创建成功')
+        
+        // 根据年级提取年级级别 (一年级=1, 二年级=2, ...)
+        const gradeLevel = parseInt(values.grade.replace(/[^0-9]/g, '')) || 1
+        
+        if (editingId) {
+          // 更新班级 - 发送所有可更新字段（包括空值）
+          const updateData = {
+            class_name: values.className || null,
+            grade: values.grade || null,
+            grade_level: gradeLevel || null,
+            class_teacher_name: values.coach || null,
+            assistant_teacher_name: values.physicalTeacher || null,
+            max_student_count: values.maxStudentCount || 60,
+            status: values.status || 'active'
           }
-          setIsModalVisible(false)
-          setLoading(false)
-          setEditingId(null)
-        }, 500)
+          
+          dispatch(updateClassAPI({
+            id: editingId,
+            classData: updateData
+          })).unwrap()
+          .then(() => {
+            message.success('班级更新成功')
+            setIsModalVisible(false)
+            form.resetFields()
+            setEditingId(null)
+            fetchData()
+          })
+          .catch(error => {
+            message.error(error || '更新班级失败')
+          })
+          .finally(() => {
+            setLoading(false)
+          })
+        } else {
+          // 创建班级 - 需要所有必填字段
+          const createData = {
+            class_name: values.className,
+            grade: values.grade,
+            grade_level: gradeLevel,
+            class_teacher_name: values.coach,
+            assistant_teacher_name: values.physicalTeacher,
+            max_student_count: values.maxStudentCount || 60,
+            start_date: new Date().toISOString().split('T')[0],
+            school_id: 1,
+            school_year_id: 1,
+            status: values.status || 'active'
+          }
+          
+          dispatch(createClassAPI(createData)).unwrap()
+          .then(() => {
+            message.success('班级创建成功')
+            setIsModalVisible(false)
+            form.resetFields()
+            fetchData()
+          })
+          .catch(error => {
+            message.error(error || '创建班级失败')
+          })
+          .finally(() => {
+            setLoading(false)
+          })
+        }
       })
       .catch(info => {
         // console.log('表单验证失败:', info)
@@ -69,18 +156,34 @@ const Classes = () => {
   }
 
   // 删除班级
-  const handleDelete = (id) => {
+  const handleDelete = (id, force = false) => {
     Modal.confirm({
       title: '确认删除',
-      content: '您确定要删除这个班级吗？',
-      onOk: () => {
+      content: force ? '班级中有学生，确定要强制删除吗？这将同时删除所有学生的班级关联！' : '您确定要删除这个班级吗？',
+      okType: force ? 'danger' : 'primary',
+      onOk: async () => {
         setLoading(true)
-        // 模拟API请求
-        setTimeout(() => {
-          dispatch(deleteClass(id))
+        try {
+          await dispatch(deleteClassAPI({ id, force })).unwrap()
           message.success('班级删除成功')
+          fetchData()
+        } catch (error) {
+          // 如果是因为有学生无法删除，提示用户是否强制删除
+          if (error.includes('学生') && !force) {
+            Modal.confirm({
+              title: '班级中有学生',
+              content: error + ' 是否强制删除？',
+              okText: '强制删除',
+              okType: 'danger',
+              cancelText: '取消',
+              onOk: () => handleDelete(id, true)
+            })
+          } else {
+            message.error(error || '删除班级失败')
+          }
+        } finally {
           setLoading(false)
-        }, 500)
+        }
       }
     })
   }
@@ -114,11 +217,13 @@ const Classes = () => {
       width: 80
     },
     {
-      title: '学生人数',
-      dataIndex: 'studentCount',
+      title: '当前/最大人数',
       key: 'studentCount',
-      width: 80,
-      align: 'center'
+      width: 120,
+      align: 'center',
+      render: (_, record) => (
+        <span>{record.studentCount || 0} / {record.maxStudentCount || 60}</span>
+      )
     },
     {
       title: '状态',
@@ -155,6 +260,23 @@ const Classes = () => {
           <Space>
             <Button type="primary" icon={<PlusOutlined />} onClick={() => showModal()}>
               添加班级
+            </Button>
+            <Button danger onClick={async () => {
+              Modal.confirm({
+                title: '清除数据',
+                content: '确认清除所有班级、学生及关联数据？此操作不可恢复。',
+                onOk: async () => {
+                  try {
+                    const res = await apiClient.delete('/debug/clear-data')
+                    message.success('清除完成: ' + JSON.stringify(res.deleted))
+                    fetchData()
+                  } catch (err) {
+                    message.error(err?.response?.data?.detail || '清除失败，请检查权限')
+                  }
+                }
+              })
+            }}>
+              清除数据
             </Button>
           </Space>
         </div>
@@ -220,13 +342,13 @@ const Classes = () => {
             </Form.Item>
 
             <Form.Item
-              name="studentCount"
-              label="学生人数"
-              rules={[{ required: false, message: '请输入学生人数!' }]}
+              name="maxStudentCount"
+              label="最大学生数"
+              rules={[{ required: true, message: '请输入最大学生数!' }]}
             >
               <InputNumber 
-                placeholder="请输入学生人数" 
-                min={0} 
+                placeholder="请输入最大学生数" 
+                min={1} 
                 max={200} 
                 style={{ width: '100%' }}
               />

@@ -6,7 +6,7 @@ from sqlalchemy import and_, or_, func
 from typing import List, Optional, Tuple
 from models import Student, Class, StudentClassRelation, School, User
 from schemas import StudentCreate, StudentUpdate, StudentQueryParams, UserCreate, UserUpdate, UserResponse
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from auth import AuthService
 
 class StudentCRUD:
@@ -14,7 +14,9 @@ class StudentCRUD:
     
     def create_student(self, db: Session, student_data: StudentCreate) -> Student:
         """创建学生"""
-        db_student = Student(**student_data.dict())
+        # 排除class_id和join_date，这些不是Student模型的字段
+        student_dict = student_data.dict(exclude={'class_id', 'join_date'})
+        db_student = Student(**student_dict)
         db.add(db_student)
         db.commit()
         db.refresh(db_student)
@@ -84,15 +86,68 @@ class StudentCRUD:
         
         return students, total
     
+    def get_students_with_class(self, db: Session, params: StudentQueryParams) -> Tuple[List[dict], int]:
+        """获取学生列表（包含当前班级信息）"""
+        students, total = self.get_students(db, params)
+        
+        result = []
+        for student in students:
+            # 查询学生的当前班级
+            current_relation = db.query(StudentClassRelation).filter(
+                StudentClassRelation.student_id == student.id,
+                StudentClassRelation.is_current == True
+            ).first()
+            
+            student_dict = {
+                'id': student.id,
+                'student_no': student.student_no,
+                'real_name': student.real_name,
+                'gender': student.gender.value if student.gender else None,
+                'birth_date': student.birth_date,
+                'id_card': student.id_card,
+                'photo_url': student.photo_url,
+                'health_status': student.health_status,
+                'allergy_info': student.allergy_info,
+                'special_notes': student.special_notes,
+                'sports_level': student.sports_level.value if student.sports_level else None,
+                'sports_specialty': student.sports_specialty,
+                'physical_limitations': student.physical_limitations,
+                'status': student.status.value if student.status else 'active',
+                'enrollment_date': student.enrollment_date,
+                'graduation_date': student.graduation_date,
+                'user_id': student.user_id,
+                'created_at': student.created_at,
+                'updated_at': student.updated_at,
+                # 当前班级信息
+                'current_class_id': None,
+                'current_class_name': None,
+                'current_grade': None,
+                'current_academic_year': None
+            }
+            
+            if current_relation and current_relation.class_:
+                student_dict['current_class_id'] = current_relation.class_id
+                student_dict['current_class_name'] = current_relation.class_.class_name
+                student_dict['current_grade'] = current_relation.class_.grade
+                student_dict['current_academic_year'] = current_relation.academic_year
+            
+            result.append(student_dict)
+        
+        return result, total
+    
     def update_student(self, db: Session, student_id: int, student_data: StudentUpdate) -> Optional[Student]:
         """更新学生信息"""
         db_student = self.get_student(db, student_id)
         if not db_student:
             return None
         
-        update_data = student_data.dict(exclude_unset=True)
+        # 接受所有字段更新，包括空值（允许清空字段）
+        update_data = student_data.dict()
         for field, value in update_data.items():
-            setattr(db_student, field, value)
+            if value is not None or field in ['photo_url', 'health_status', 'allergy_info', 
+                                                'special_notes', 'sports_level', 'sports_specialty', 
+                                                'physical_limitations', 'graduation_date']:
+                setattr(db_student, field, value)
         
         db.commit()
         db.refresh(db_student)
@@ -126,7 +181,7 @@ class StudentCRUD:
                 'relation_id': relation.id,
                 'class_name': relation.class_.class_name,
                 'grade': relation.class_.grade,
-                'academic_year': relation.academic_year,
+                'academic_year': relation.class_.school_year.academic_year if relation.class_.school_year else None,
                 'join_date': relation.join_date,
                 'leave_date': relation.leave_date,
                 'is_current': relation.is_current,
@@ -136,46 +191,77 @@ class StudentCRUD:
         return result
     
     def assign_student_to_class(self, db: Session, student_id: int, class_id: int, 
-                               academic_year: str, join_date: date = None) -> bool:
+                               join_date: date = None) -> bool:
         """将学生分配到班级"""
         if not join_date:
             join_date = date.today()
+        
+        # 获取目标班级信息（用于获取学年和检查容量）
+        target_class = db.query(Class).filter(Class.id == class_id).first()
+        if not target_class:
+            return False
+        
+        # 检查班级容量
+        if target_class.current_student_count >= target_class.max_student_count:
+            return False  # 班级已满
         
         # 检查是否已在该班级
         existing = db.query(StudentClassRelation).filter(
             and_(
                 StudentClassRelation.student_id == student_id,
                 StudentClassRelation.class_id == class_id,
-                StudentClassRelation.academic_year == academic_year
+                StudentClassRelation.is_current == True
             )
         ).first()
         
         if existing:
             return False  # 已存在
         
-        # 将之前在该班级的关联设为非当前
-        db.query(StudentClassRelation).filter(
+        # 获取之前的班级ID（用于更新人数）
+        old_relation = db.query(StudentClassRelation).filter(
             and_(
                 StudentClassRelation.student_id == student_id,
-                StudentClassRelation.class_id == class_id,
-                StudentClassRelation.academic_year == academic_year
+                StudentClassRelation.is_current == True
             )
-        ).update({'is_current': False})
+        ).first()
+        old_class_id = old_relation.class_id if old_relation else None
         
-        # 创建新的关联
+        # 将之前的关联设为非当前
+        if old_relation:
+            old_relation.is_current = False
+            old_relation.leave_date = join_date
+        
+        # 创建新的关联（自动填充学年信息）
         new_relation = StudentClassRelation(
             student_id=student_id,
             class_id=class_id,
-            academic_year=academic_year,
+            academic_year=target_class.academic_year,  # 从班级获取学年
             join_date=join_date,
             is_current=True
         )
         db.add(new_relation)
         db.commit()
+        
+        # 更新新班级的学生人数
+        target_class.current_student_count = db.query(StudentClassRelation).filter(
+            StudentClassRelation.class_id == class_id,
+            StudentClassRelation.is_current == True
+        ).count()
+        
+        # 更新旧班级的学生人数
+        if old_class_id:
+            old_class = db.query(Class).filter(Class.id == old_class_id).first()
+            if old_class:
+                old_class.current_student_count = db.query(StudentClassRelation).filter(
+                    StudentClassRelation.class_id == old_class_id,
+                    StudentClassRelation.is_current == True
+                ).count()
+        
+        db.commit()
         return True
     
     def remove_student_from_class(self, db: Session, student_id: int, class_id: int, 
-                                 academic_year: str, leave_date: date = None) -> bool:
+                                 leave_date: date = None) -> bool:
         """将学生从班级中移除"""
         if not leave_date:
             leave_date = date.today()
@@ -184,7 +270,6 @@ class StudentCRUD:
             and_(
                 StudentClassRelation.student_id == student_id,
                 StudentClassRelation.class_id == class_id,
-                StudentClassRelation.academic_year == academic_year,
                 StudentClassRelation.is_current == True
             )
         ).first()
@@ -195,6 +280,16 @@ class StudentCRUD:
         relation.leave_date = leave_date
         relation.is_current = False
         db.commit()
+        
+        # 更新班级学生人数
+        db_class = db.query(Class).filter(Class.id == class_id).first()
+        if db_class:
+            db_class.current_student_count = db.query(StudentClassRelation).filter(
+                StudentClassRelation.class_id == class_id,
+                StudentClassRelation.is_current == True
+            ).count()
+            db.commit()
+        
         return True
 
 class ClassCRUD:
@@ -204,17 +299,33 @@ class ClassCRUD:
         """根据ID获取班级"""
         return db.query(Class).filter(Class.id == class_id).first()
     
-    def get_classes(self, db: Session, school_id: int = None, grade: str = None) -> List[Class]:
+    def get_classes(self, db: Session, school_id: int = None, school_year_id: int = None, grade: str = None) -> List[Class]:
         """获取班级列表"""
         query = db.query(Class)
         
         if school_id:
             query = query.filter(Class.school_id == school_id)
         
+        if school_year_id:
+            query = query.filter(Class.school_year_id == school_year_id)
+        
         if grade:
             query = query.filter(Class.grade == grade)
         
         return query.filter(Class.status == "active").order_by(Class.grade_level, Class.class_name).all()
+    
+    def update_student_count(self, db: Session, class_id: int) -> int:
+        """更新班级学生人数"""
+        count = db.query(StudentClassRelation).filter(
+            StudentClassRelation.class_id == class_id,
+            StudentClassRelation.is_current == True
+        ).count()
+        
+        db_class = self.get_class(db, class_id)
+        if db_class:
+            db_class.current_student_count = count
+            db.commit()
+        return count
     
     def create_class(self, db: Session, class_data: dict) -> Class:
         """创建班级"""
@@ -250,18 +361,53 @@ class ClassCRUD:
         db.refresh(db_class)
         return db_class
     
-    def delete_class(self, db: Session, class_id: int) -> bool:
-        """删除班级（软删除）"""
+    def delete_class(self, db: Session, class_id: int, force: bool = False) -> dict:
+        """删除班级（软删除）
+        
+        Args:
+            db: 数据库会话
+            class_id: 班级ID
+            force: 是否强制删除（即使有学生也删除）
+            
+        Returns:
+            dict: 包含success、message和transferred_students字段
+        """
         db_class = self.get_class(db, class_id)
         if not db_class:
-            return False
+            return {"success": False, "message": "班级不存在", "transferred_students": 0}
         
-        # 软删除：将状态设为inactive
-        db_class.status = "inactive"
+        # 检查是否有学生
+        student_count = db.query(StudentClassRelation).filter(
+            StudentClassRelation.class_id == class_id,
+            StudentClassRelation.is_current == True
+        ).count()
+        
+        if student_count > 0 and not force:
+            return {
+                "success": False, 
+                "message": f"班级中还有 {student_count} 名学生，请先转移学生或使用强制删除",
+                "transferred_students": 0
+            }
+        
+        # 将所有学生关系设为非当前
+        from models import StatusEnum
+        db.query(StudentClassRelation).filter(
+            StudentClassRelation.class_id == class_id,
+            StudentClassRelation.is_current == True
+        ).update({
+            'is_current': False, 
+            'leave_date': date.today(),
+            'status': StatusEnum.inactive
+        })
+        
+        # 软删除班级
+        db_class.status = StatusEnum.inactive
+        db_class.end_date = date.today()
         db.commit()
-        return True
+        
+        return {"success": True, "message": "班级删除成功", "transferred_students": student_count}
     
-    def get_class_students(self, db: Session, class_id: int, academic_year: str = None) -> List[Student]:
+    def get_class_students(self, db: Session, class_id: int) -> List[Student]:
         """获取班级学生列表"""
         query = db.query(Student).join(StudentClassRelation).filter(
             StudentClassRelation.student_id == Student.id,
@@ -269,14 +415,37 @@ class ClassCRUD:
             StudentClassRelation.is_current == True
         )
         
-        if academic_year:
-            query = query.filter(StudentClassRelation.academic_year == academic_year)
-        
         return query.order_by(Student.real_name).all()
     
     def get_class_history(self, db: Session, class_id: int) -> List[dict]:
-        """获取班级历史信息"""
-        pass  # 后续实现
+        """获取班级历史信息（所有学生的加入/离开记录）"""
+        db_class = self.get_class(db, class_id)
+        if not db_class:
+            return []
+        
+        # 获取所有学生关系历史
+        relations = db.query(StudentClassRelation).filter(
+            StudentClassRelation.class_id == class_id
+        ).order_by(StudentClassRelation.join_date.desc()).all()
+        
+        history = []
+        for relation in relations:
+            student = db.query(Student).filter(Student.id == relation.student_id).first()
+            if student:
+                history.append({
+                    'relation_id': relation.id,
+                    'student_id': student.id,
+                    'student_name': student.real_name,
+                    'student_no': student.student_no,
+                    'gender': student.gender.value if student.gender else None,
+                    'join_date': relation.join_date,
+                    'leave_date': relation.leave_date,
+                    'is_current': relation.is_current,
+                    'status': relation.status.value if relation.status else 'active',
+                    'academic_year': relation.academic_year
+                })
+        
+        return history
     
     def assign_teacher(self, db: Session, class_id: int, teacher_id: int, is_main_teacher: bool = True) -> bool:
         """分配教师到班级"""
@@ -395,7 +564,7 @@ class UserCRUD:
         if not db_user:
             return False
         
-        db_user.last_login_at = datetime.utcnow()
+        db_user.last_login_at = datetime.now(timezone.utc)
         db.commit()
         return True
 
@@ -404,3 +573,9 @@ student_crud = StudentCRUD()
 class_crud = ClassCRUD()
 school_crud = SchoolCRUD()
 user_crud = UserCRUD()
+
+# 从 crud 包导入其他 crud 实例 (保持兼容性)
+from crud.school_year_crud import school_year_crud
+from crud.sports_meet_crud import sports_meet_crud
+from crud.physical_test_crud import physical_test_crud
+from crud.token_crud import token_crud

@@ -137,7 +137,9 @@ const authSlice = createSlice({
       })
       .addCase(login.fulfilled, (state, action) => {
         state.loading = false
-        state.user = action.payload.user
+        // 后端返回的是 user_info，需要映射到 user
+        const user = action.payload.user || action.payload.user_info
+        state.user = user
         state.token = action.payload.token
         state.isAuthenticated = true
         state.error = null
@@ -145,7 +147,7 @@ const authSlice = createSlice({
         if (typeof window !== 'undefined' && window.localStorage) {
           window.localStorage.setItem('auth', JSON.stringify({
             token: action.payload.token,
-            user: action.payload.user,
+            user: user,
             isAuthenticated: true
           }))
         }

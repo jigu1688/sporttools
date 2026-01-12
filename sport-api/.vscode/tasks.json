@@ -1,0 +1,15 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "启动后端API服务",
+			"type": "shell",
+			"command": "python",
+			"args": [
+				"main.py"
+			],
+			"isBackground": true,
+			"problemMatcher": []
+		}
+	]
+}

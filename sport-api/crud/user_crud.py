@@ -3,7 +3,7 @@
 
 from sqlalchemy.orm import Session
 from models import User, StatusEnum
-from datetime import datetime
+from datetime import datetime, timezone
 
 class UserCRUD:
     """用户CRUD操作类"""
@@ -80,10 +80,15 @@ class UserCRUD:
             return None
         
         # 更新用户信息
-        for field, value in user_data.dict(exclude_unset=True).items():
+        if hasattr(user_data, 'dict'):
+            update_data = user_data.dict(exclude_unset=True)
+        else:
+            update_data = user_data
+        
+        for field, value in update_data.items():
             setattr(db_user, field, value)
         
-        db_user.updated_at = datetime.utcnow()
+        db_user.updated_at = datetime.now(timezone.utc)
         db.commit()
         db.refresh(db_user)
         return db_user
@@ -96,7 +101,7 @@ class UserCRUD:
             return None
         
         db_user.status = status
-        db_user.updated_at = datetime.utcnow()
+        db_user.updated_at = datetime.now(timezone.utc)
         db.commit()
         db.refresh(db_user)
         return db_user
@@ -109,7 +114,7 @@ class UserCRUD:
             return None
         
         db_user.role = role
-        db_user.updated_at = datetime.utcnow()
+        db_user.updated_at = datetime.now(timezone.utc)
         db.commit()
         db.refresh(db_user)
         return db_user
@@ -125,7 +130,7 @@ class UserCRUD:
         # 生成密码哈希
         hashed_password = AuthService.get_password_hash(new_password)
         db_user.hashed_password = hashed_password
-        db_user.updated_at = datetime.utcnow()
+        db_user.updated_at = datetime.now(timezone.utc)
         db.commit()
         return True
     
@@ -136,8 +141,8 @@ class UserCRUD:
         if not db_user:
             return False
         
-        db_user.last_login_at = datetime.utcnow()
-        db_user.updated_at = datetime.utcnow()
+        db_user.last_login_at = datetime.now(timezone.utc)
+        db_user.updated_at = datetime.now(timezone.utc)
         db.commit()
         return True
     

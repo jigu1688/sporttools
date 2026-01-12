@@ -128,75 +128,63 @@ const TestItemConfig = () => {
       )
     },
     {
-      title: '项目编码',
-      dataIndex: 'itemCode',
-      key: 'itemCode',
-      width: 150
-    },
-    {
-      title: '项目类型',
-      dataIndex: 'itemType',
-      key: 'itemType',
-      width: 120,
-      render: (type) => {
-        const typeMap = {
-          required: '必测',
-          optional: '选测',
-          bonus: '加分'
-        }
-        return <span>{typeMap[type] || type}</span>
-      }
-    },
-    {
-      title: '适用年级',
-      dataIndex: 'applicableGrades',
-      key: 'applicableGrades',
-      width: 200,
-      render: (grades) => (
-        <Space wrap>
-          {grades.map((grade, index) => (
-            <Tag key={index} color="green">{grade}</Tag>
-          ))}
-        </Space>
-      )
-    },
-    {
-      title: '适用性别',
-      dataIndex: 'applicableGenders',
-      key: 'applicableGenders',
-      width: 120,
-      render: (genders) => (
-        <Space>
-          {genders.map((gender, index) => (
-            <Tag key={index} color={gender === 'male' ? 'blue' : 'pink'}>
-              {genderOptions.find(g => g.value === gender)?.label}
-            </Tag>
-          ))}
-        </Space>
-      )
-    },
-    {
       title: '单位',
       dataIndex: 'unit',
       key: 'unit',
       width: 100
     },
     {
-      title: '最小值',
+      title: '下限值',
       dataIndex: 'minValue',
       key: 'minValue',
       width: 100
     },
     {
-      title: '最大值',
+      title: '上限值',
       dataIndex: 'maxValue',
       key: 'maxValue',
       width: 100
     },
     {
-      title: '权重(%)',
-      dataIndex: 'weight',
-      key: 'weight',
+      title: '小数位',
+      dataIndex: 'decimalPlaces',
+      key: 'decimalPlaces',
+      width: 100
+    },
+    {
+      title: '小数取舍',
+      dataIndex: 'roundingRule',
+      key: 'roundingRule',
+      width: 120
+    },
+    {
+      title: '测试人员',
+      dataIndex: 'tester',
+      key: 'tester',
+      width: 120
+    },
+    {
+      title: '测试时间',
+      dataIndex: 'testTime',
+      key: 'testTime',
+      width: 150
+    },
+    {
+      title: '测试地点',
+      dataIndex: 'testLocation',
+      key: 'testLocation',
+      width: 120
+    },
+    {
+      title: '测试仪器',
+      dataIndex: 'testInstrument',
+      key: 'testInstrument',
+      width: 120
+    },
+    {
+      title: '测试方式',
+      dataIndex: 'testMethod',
+      key: 'testMethod',
       width: 100
     },
     {
@@ -297,6 +285,95 @@ const TestItemConfig = () => {
             </Form.Item>
 
             <Form.Item
+              name="unit"
+              label="单位"
+              rules={[{ required: true, message: '请输入单位!' }]}
+            >
+              <Input placeholder="请输入单位" />
+            </Form.Item>
+
+            <Form.Item
+              name="decimalPlaces"
+              label="小数位"
+              rules={[{ required: true, message: '请输入小数位!' }, { type: 'number', message: '请输入数字!' }]}
+            >
+              <Input type="number" placeholder="请输入小数位" />
+            </Form.Item>
+
+            <Form.Item
+              name="roundingRule"
+              label="小数取舍"
+              rules={[{ required: true, message: '请选择小数取舍方式!' }]}
+            >
+              <Select placeholder="请选择小数取舍方式">
+                <Option value="四舍五入">四舍五入</Option>
+                <Option value="非零进一">非零进一</Option>
+                <Option value="不取舍">不取舍</Option>
+              </Select>
+            </Form.Item>
+
+            <Form.Item
+              name="testMethod"
+              label="测试方式"
+              rules={[{ required: true, message: '请选择测试方式!' }]}
+            >
+              <Select placeholder="请选择测试方式">
+                <Option value="仪器">仪器</Option>
+                <Option value="手工">手工</Option>
+              </Select>
+            </Form.Item>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+              <Form.Item
+                name="minValue"
+                label="下限值"
+                rules={[{ required: true, message: '请输入下限值!' }, { type: 'number', message: '请输入数字!' }]}
+              >
+                <Input type="number" placeholder="请输入下限值" />
+              </Form.Item>
+
+              <Form.Item
+                name="maxValue"
+                label="上限值"
+                rules={[{ required: true, message: '请输入上限值!' }, { type: 'number', message: '请输入数字!' }]}
+              >
+                <Input type="number" placeholder="请输入上限值" />
+              </Form.Item>
+            </div>
+
+            <Form.Item
+              name="tester"
+              label="测试人员"
+              rules={[{ required: true, message: '请输入测试人员!' }]}
+            >
+              <Input placeholder="请输入测试人员" />
+            </Form.Item>
+
+            <Form.Item
+              name="testLocation"
+              label="测试地点"
+              rules={[{ required: true, message: '请输入测试地点!' }]}
+            >
+              <Input placeholder="请输入测试地点" />
+            </Form.Item>
+
+            <Form.Item
+              name="testInstrument"
+              label="测试仪器"
+              rules={[{ required: true, message: '请输入测试仪器!' }]}
+            >
+              <Input placeholder="请输入测试仪器" />
+            </Form.Item>
+
+            <Form.Item
+              name="testTime"
+              label="测试时间"
+              rules={[{ required: true, message: '请输入测试时间!' }]}
+            >
+              <Input placeholder="请输入测试时间，格式：YYYY/MM/DD" />
+            </Form.Item>
+
+            <Form.Item
               name="itemType"
               label="项目类型"
               rules={[{ required: true, message: '请选择项目类型!' }]}
@@ -315,32 +392,6 @@ const TestItemConfig = () => {
             >
               <Input type="number" placeholder="请输入权重" />
             </Form.Item>
-
-            <Form.Item
-              name="unit"
-              label="单位"
-              rules={[{ required: true, message: '请输入单位!' }]}
-            >
-              <Input placeholder="请输入单位" />
-            </Form.Item>
-
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-              <Form.Item
-                name="minValue"
-                label="最小值"
-                rules={[{ required: true, message: '请输入最小值!' }, { type: 'number', message: '请输入数字!' }]}
-              >
-                <Input type="number" placeholder="请输入最小值" />
-              </Form.Item>
-
-              <Form.Item
-                name="maxValue"
-                label="最大值"
-                rules={[{ required: true, message: '请输入最大值!' }, { type: 'number', message: '请输入数字!' }]}
-              >
-                <Input type="number" placeholder="请输入最大值" />
-              </Form.Item>
-            </div>
           </div>
 
           <Form.Item

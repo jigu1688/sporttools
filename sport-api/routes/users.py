@@ -6,10 +6,16 @@ from typing import List, Optional
 from database import get_db
 from crud import user_crud
 from schemas import UserCreate, UserUpdate, UserResponse, ChangePasswordRequest, UserLogin, TokenResponse
-from auth import AuthService, get_current_user, require_permissions, PermissionType
+from auth import (
+    AuthService,
+    get_current_user,
+    require_permissions,
+    require_permissions_dependency,
+    PermissionType,
+)
 from models import User
 
-router = APIRouter(prefix="/api/v1/users", tags=["users"])
+router = APIRouter(tags=["users"])
 
 # 获取用户列表（需要管理员权限）
 @router.get("", response_model=List[UserResponse])
@@ -38,8 +44,16 @@ async def get_user(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """获取用户信息"""
+    """获取用户信息（只有管理员或本人可以查看）"""
     try:
+        # 权限检查：只有管理员或本人可以查看
+        from models import UserRoleEnum
+        if current_user.role != UserRoleEnum.admin.value and current_user.id != user_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="您没有权限查看此用户信息"
+            )
+        
         user = user_crud.get_user(db, user_id=user_id)
         if not user:
             raise HTTPException(
@@ -168,7 +182,9 @@ async def change_password(
 async def delete_user(
     user_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_permissions([PermissionType.USER_MANAGE]))
+    current_user: User = Depends(
+        require_permissions_dependency([PermissionType.USER_MANAGE])
+    )
 ):
     """删除用户"""
     try:

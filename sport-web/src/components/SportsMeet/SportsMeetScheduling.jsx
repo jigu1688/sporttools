@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { Card, Row, Col, Table, Button, Modal, Form, DatePicker, Select, Space, Typography, message, Calendar, Tag } from 'antd'
 import { EditOutlined, DeleteOutlined, PlusOutlined, CalendarOutlined } from '@ant-design/icons'
 import { useSelector, useDispatch } from 'react-redux'
-import { setSchedules, addSchedule, updateSchedule, deleteSchedule, setVenues, setSportsMeets, setEvents, setReferees, setRegistrations } from '../../store/sportsMeetSlice'
+import { fetchSportsMeets, fetchEvents, fetchRegistrations, fetchReferees, fetchVenues, fetchSchedules, createSchedule, updateScheduleById, deleteScheduleById } from '../../store/sportsMeetSlice'
 
 const { Title, Text } = Typography
 const { Option } = Select
@@ -24,111 +24,36 @@ const SportsMeetScheduling = () => {
   const dispatch = useDispatch()
   const { sportsMeets, events, schedules, registrations, referees, venues } = useSelector(state => state.sportsMeet)
   
-  // 初始化模拟数据
+  // 初始化真实数据
   useEffect(() => {
-    // 初始化运动会信息
-    if (sportsMeets.length === 0) {
-      const mockSportsMeets = [
-        {
-          id: '1',
-          name: '2026年春季运动会',
-          startDate: '2026-04-15',
-          endDate: '2026-04-16',
-          status: '筹备中',
-          description: '小学春季田径运动会'
-        }
-      ]
-      dispatch(setSportsMeets(mockSportsMeets))
-    }
+    // 获取运动会列表
+    dispatch(fetchSportsMeets())
     
-    // 初始化项目信息
-    if (events.length === 0) {
-      const mockEvents = [
-        { id: '1', name: '50米跑', type: '径赛', description: '短跑项目', isTeamEvent: false },
-        { id: '2', name: '100米跑', type: '径赛', description: '短跑项目', isTeamEvent: false },
-        { id: '3', name: '200米跑', type: '径赛', description: '短跑项目', isTeamEvent: false },
-        { id: '4', name: '400米跑', type: '径赛', description: '中长跑项目', isTeamEvent: false },
-        { id: '5', name: '跳远', type: '田赛', description: '跳跃项目', isTeamEvent: false },
-        { id: '6', name: '跳高', type: '田赛', description: '跳跃项目', isTeamEvent: false },
-        { id: '7', name: '铅球', type: '田赛', description: '投掷项目', isTeamEvent: false },
-        { id: '8', name: '4x100米接力', type: '径赛', description: '接力项目', isTeamEvent: true, teamSize: 4 },
-        { id: '9', name: '班级迎面接力', type: '径赛', description: '团体项目', isTeamEvent: true, teamSize: 10 },
-        { id: '10', name: '拔河比赛', type: '径赛', description: '团体项目', isTeamEvent: true, teamSize: 12 }
-      ]
-      dispatch(setEvents(mockEvents))
-    }
+    // 获取场馆列表
+    dispatch(fetchVenues())
     
-    // 初始化裁判信息
-    if (referees.length === 0) {
-      const mockReferees = [
-        { id: '1', name: '张三', position: '主裁判' },
-        { id: '2', name: '李四', position: '副裁判' },
-        { id: '3', name: '王五', position: '助理裁判' }
-      ]
-      dispatch(setReferees(mockReferees))
-    }
-    
-    // 初始化报名信息
-    if (registrations.length === 0) {
-      // 模拟精简的报名信息，减少数据量
-      const mockRegistrations = []
-      const sportsMeetId = '1'
-      const events = ['1', '2', '3', '4', '5'] // 只生成5个项目
-      const grades = ['1', '2', '3'] // 只生成3个年级
-      const classesPerGrade = 2 // 每个年级2个班
-      const studentsPerClassPerEvent = 2 // 每个班每个性别每个项目2人
-      const genders = ['男'] // 只生成男生数据
+    // 获取运动会列表
+    dispatch(fetchSportsMeets())
+  }, [dispatch])
+  
+  // 当选中运动会时，获取相关数据
+  useEffect(() => {
+    if (sportsMeets && sportsMeets.length > 0) {
+      const selectedSportsMeetId = sportsMeets[0].id // 默认选择第一个运动会
+      // 获取该运动会的项目列表
+      dispatch(fetchEvents(selectedSportsMeetId))
       
-      let id = 1
-      grades.forEach(grade => {
-        events.forEach(eventId => {
-          for (let classNum = 1; classNum <= classesPerGrade; classNum++) {
-            const className = classNum.toString()
-            genders.forEach(gender => {
-              for (let i = 0; i < studentsPerClassPerEvent; i++) {
-                mockRegistrations.push({
-                  id: id.toString(),
-                  sportsMeetId: sportsMeetId,
-                  eventId: eventId,
-                  studentName: `${grade}年级${className}班${gender === '男' ? '男' : '女'}生${i+1}`,
-                  className: className,
-                  grade: grade,
-                  gender: gender,
-                  competitionNumber: `${grade}${className}${gender === '男' ? '1' : '2'}${(i+1) % 10}`,
-                  status: '已通过',
-                  createdAt: '2026-01-05',
-                  reviewedAt: '2026-01-06',
-                  reviewedBy: '系统管理员',
-                  reviewNotes: '审核通过',
-                  isTeamEvent: eventId >= '8' // 项目8-10为团体项目
-                })
-                id++
-              }
-            })
-          }
-        })
-      })
+      // 获取该运动会的报名信息
+      dispatch(fetchRegistrations({ sportsMeetId: selectedSportsMeetId }))
       
-      dispatch(setRegistrations(mockRegistrations))
+      // 获取该运动会的赛程列表
+      dispatch(fetchSchedules({ sportsMeetId: selectedSportsMeetId }))
     }
-    
-    // 初始化场馆数据
-    if (venues.length === 0) {
-      const mockVenues = [
-        { id: '1', name: '田径场1号跑道', type: 'track', capacity: 8 },
-        { id: '2', name: '田径场2号跑道', type: 'track', capacity: 8 },
-        { id: '3', name: '跳远沙坑', type: 'field', capacity: 1 },
-        { id: '4', name: '铅球场地', type: 'field', capacity: 1 },
-        { id: '5', name: '篮球场1', type: 'court', capacity: 2 },
-        { id: '6', name: '篮球场2', type: 'court', capacity: 2 }
-      ]
-      dispatch(setVenues(mockVenues))
-    }
-  }, [sportsMeets, events, referees, registrations, venues, dispatch])
+  }, [sportsMeets, dispatch])
   
   // 初始化模拟日程数据（仅在没有自动生成的赛程时使用）
   useEffect(() => {
-    if (schedules.length === 0 && registrations.length > 0) {
+    if ((!schedules || schedules.length === 0) && registrations && registrations.length > 0) {
       // 如果有报名信息但没有赛程，自动生成赛程
       // 这里不直接调用handleAutoSchedule，避免多次触发
     }
@@ -169,7 +94,7 @@ const SportsMeetScheduling = () => {
     const { date, startTime, endTime } = values
     
     // 检查同一字段值在同一时间是否已经被分配到其他项目
-    const conflictSchedule = schedules.find(schedule => {
+    const conflictSchedule = Array.isArray(schedules) ? schedules.find(schedule => {
       // 排除正在编辑的当前日程
       if (editingId && schedule.id === editingId) return false
       
@@ -186,7 +111,7 @@ const SportsMeetScheduling = () => {
       const currentEnd = new Date(`2000-01-01T${endTime}`)
       
       return currentStart < scheduleEnd && currentEnd > scheduleStart
-    })
+    }) : undefined
     
     return conflictSchedule
   }
@@ -207,7 +132,7 @@ const SportsMeetScheduling = () => {
   
   // 仅当schedules变化时才检测冲突
   useEffect(() => {
-    if (schedules.length === 0) {
+    if (!Array.isArray(schedules) || schedules.length === 0) {
       setConflicts([])
       setConflictingIds([])
       return
@@ -299,18 +224,21 @@ const SportsMeetScheduling = () => {
       okType: 'danger',
       cancelText: '取消',
       onOk: () => {
-        selectedRowKeys.forEach(id => {
-          dispatch(deleteSchedule(id))
-        })
-        message.success(`成功删除 ${selectedRowKeys.length} 条赛程`)
-        setSelectedRowKeys([])
+        if (sportsMeets && sportsMeets.length > 0) {
+          const selectedSportsMeetId = sportsMeets[0].id
+          selectedRowKeys.forEach(id => {
+            dispatch(deleteScheduleById({ sportsMeetId: selectedSportsMeetId, scheduleId: id }))
+          })
+          message.success(`成功删除 ${selectedRowKeys.length} 条赛程`)
+          setSelectedRowKeys([])
+        }
       }
     })
   }
   
   // 批量导出功能
   const handleBatchExport = () => {
-    if (schedules.length === 0) {
+    if (!schedules || schedules.length === 0) {
       message.warning('没有可导出的数据')
       return
     }
@@ -319,7 +247,7 @@ const SportsMeetScheduling = () => {
     const headers = ['项目名称', '日期', '开始时间', '结束时间', '场地', '裁判', '组数', '状态']
     const csvContent = [
       headers.join(','),
-      ...schedules.map(schedule => [
+      ...(Array.isArray(schedules) ? schedules.map(schedule => [
         schedule.eventName,
         schedule.date,
         schedule.startTime,
@@ -328,7 +256,7 @@ const SportsMeetScheduling = () => {
         schedule.裁判,
         schedule.groupCount,
         schedule.status
-      ].join(','))
+      ].join(',')) : [])
     ].join('\n')
     
     // 创建下载链接
@@ -417,13 +345,21 @@ const SportsMeetScheduling = () => {
         
         if (editingId) {
           // 更新日程
-          dispatch(updateSchedule({ ...scheduleData, id: editingId }))
-          message.success('日程更新成功')
+          dispatch(updateScheduleById({ 
+            sportsMeetId: values.sportsMeetId, 
+            scheduleId: editingId, 
+            scheduleData 
+          })).unwrap()
+          .then(() => message.success('日程更新成功'))
+          .catch(error => message.error(error || '日程更新失败'))
         } else {
           // 创建日程
-          const newSchedule = { ...scheduleData, id: Date.now().toString() }
-          dispatch(addSchedule(newSchedule))
-          message.success('日程创建成功')
+          dispatch(createSchedule({ 
+            sportsMeetId: values.sportsMeetId, 
+            scheduleData 
+          })).unwrap()
+          .then(() => message.success('日程创建成功'))
+          .catch(error => message.error(error || '日程创建失败'))
         }
         
         setIsModalVisible(false)
@@ -436,16 +372,23 @@ const SportsMeetScheduling = () => {
   }
   
   // 删除日程
-  const handleDelete = (id) => {
+  const handleDelete = (schedule) => {
     Modal.confirm({
       title: '确认删除',
       content: '您确定要删除这个日程安排吗？',
       okText: '确认',
       okType: 'danger',
       cancelText: '取消',
-      onOk: () => {
-        dispatch(deleteSchedule(id))
-        message.success('日程删除成功')
+      onOk: async () => {
+        try {
+          await dispatch(deleteScheduleById({
+            sportsMeetId: schedule.sportsMeetId,
+            scheduleId: schedule.id
+          })).unwrap()
+          message.success('日程删除成功')
+        } catch (error) {
+          message.error(error || '日程删除失败')
+        }
       }
     })
   }
@@ -512,7 +455,8 @@ const SportsMeetScheduling = () => {
         // console.log('排序后的项目:', sortedEvents.map(e => e.name))
         
         // 统计所有参赛年级
-        const allGrades = [...new Set(registrations.map(reg => reg.grade))].sort()
+        const safeRegistrations = Array.isArray(registrations) ? registrations : []
+        const allGrades = [...new Set(safeRegistrations.map(reg => reg.grade))].sort()
         
         // console.log('参赛年级:', allGrades)
         
@@ -1095,35 +1039,37 @@ const SportsMeetScheduling = () => {
         return <Tag color={color}>{status}</Tag>
       }
     },
-    {title: '操作',
-    key: 'action',
-    width: 320,
-    render: (_, record) => (
-      <Space size="middle">
-        <Button type="link" icon={<EditOutlined />} onClick={() => showModal(record)}>
-          编辑
-        </Button>
-        <Button type="link" onClick={() => showGroupModal(record)}>
-          分组管理
-        </Button>
-        <Button type="primary" icon={<PlusOutlined />} onClick={() => {
-          // 导航到成绩记录页面或打开成绩记录模态框
-          message.info('请在成绩记录页面进行成绩录入操作');
-          // 这里可以添加跳转到成绩记录页面的逻辑
-        }}>
-          成绩记录
-        </Button>
-        <Button type="link" danger icon={<DeleteOutlined />} onClick={() => handleDelete(record.id)}>
-          删除
-        </Button>
-      </Space>
-    )}
+    {
+      title: '操作',
+      key: 'action',
+      width: 320,
+      render: (_, record) => (
+        <Space size="middle">
+          <Button type="link" icon={<EditOutlined />} onClick={() => showModal(record)}>
+            编辑
+          </Button>
+          <Button type="link" onClick={() => showGroupModal(record)}>
+            分组管理
+          </Button>
+          <Button type="primary" icon={<PlusOutlined />} onClick={() => {
+            // 导航到成绩记录页面或打开成绩记录模态框
+            message.info('请在成绩记录页面进行成绩录入操作');
+            // 这里可以添加跳转到成绩记录页面的逻辑
+          }}>
+            成绩记录
+          </Button>
+          <Button type="link" danger icon={<DeleteOutlined />} onClick={() => handleDelete(record)}>
+            删除
+          </Button>
+        </Space>
+      )
+    }
   ]
   
   // 日历视图内容渲染
   const calendarContentRender = (value) => {
     const dateString = value.format('YYYY-MM-DD')
-    const daySchedules = schedules.filter(schedule => schedule.date === dateString)
+    const daySchedules = Array.isArray(schedules) ? schedules.filter(schedule => schedule.date === dateString) : []
     
     return (
       <div style={{ padding: 10 }}>
@@ -1146,12 +1092,14 @@ const SportsMeetScheduling = () => {
   const renderVenueView = () => {
     // 按场馆分组
     const venueGroups = {};
-    schedules.forEach(schedule => {
-      if (!venueGroups[schedule.venue]) {
-        venueGroups[schedule.venue] = [];
-      }
-      venueGroups[schedule.venue].push(schedule);
-    });
+    if (schedules && schedules.length > 0) {
+      schedules.forEach(schedule => {
+        if (!venueGroups[schedule.venue]) {
+          venueGroups[schedule.venue] = [];
+        }
+        venueGroups[schedule.venue].push(schedule);
+      });
+    }
     
     return (
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 16 }}>
@@ -1264,14 +1212,6 @@ const SportsMeetScheduling = () => {
             rowClassName={(record) => {
               return getConflictingScheduleIds().includes(record.id) ? 'conflict-row' : ''
             }}
-            style={{
-              '.conflict-row': {
-                backgroundColor: '#fff2f0',
-                '&:hover': {
-                  backgroundColor: '#ffccc7'
-                }
-              }
-            }}
           />
         </>
       )}
@@ -1308,7 +1248,7 @@ const SportsMeetScheduling = () => {
             rules={[{ required: true, message: '请选择运动会!' }]}
           >
             <Select placeholder="请选择运动会">
-              {sportsMeets.map(meet => (
+              {Array.isArray(sportsMeets) && sportsMeets.map(meet => (
                 <Option key={meet.id} value={meet.id}>{meet.name}</Option>
               ))}
             </Select>
@@ -1320,7 +1260,7 @@ const SportsMeetScheduling = () => {
             rules={[{ required: true, message: '请选择项目!' }]}
           >
             <Select placeholder="请选择项目">
-              {events.map(event => (
+              {Array.isArray(events) && events.map(event => (
                 <Option key={event.id} value={event.id}>{event.name}</Option>
               ))}
             </Select>
@@ -1361,7 +1301,7 @@ const SportsMeetScheduling = () => {
             rules={[{ required: true, message: '请选择比赛场地!' }]}
           >
             <Select placeholder="请选择比赛场地">
-              {venues.map(venue => (
+              {Array.isArray(venues) && venues.map(venue => (
                 <Option key={venue.id} value={venue.name}>{venue.name}</Option>
               ))}
             </Select>
@@ -1373,7 +1313,7 @@ const SportsMeetScheduling = () => {
             rules={[{ required: true, message: '请选择主裁判!' }]}
           >
             <Select placeholder="请选择主裁判">
-              {referees.map(referee => (
+              {Array.isArray(referees) && referees.map(referee => (
                 <Option key={referee.id} value={referee.name}>{referee.name}</Option>
               ))}
             </Select>

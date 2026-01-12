@@ -31,6 +31,10 @@ email-validator>=2.1.0
 structlog>=23.2.0
 prometheus-client>=0.19.0
 
+# 安全中间件
+slowapi>=0.1.9
+limiter>=0.5.0
+
 # 测试
 pytest>=7.4.3
 pytest-asyncio>=0.21.1

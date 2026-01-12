@@ -29,7 +29,6 @@ from schemas import (
 from models import UserRoleEnum
 
 router = APIRouter(
-    prefix="/api/v1/physical-tests",
     tags=["physical-tests"],
     responses={404: {"description": "Not found"}},
 )

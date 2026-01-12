@@ -1,10 +1,11 @@
-import { useState, useMemo, useEffect } from 'react'
-import { Table, Button, Modal, Form, Input, Select, message, Space, Typography, DatePicker, Card, Row, Col, Divider, Checkbox } from 'antd'
+import { useState, useMemo, useEffect, useRef } from 'react'
+import { Table, Button, Modal, Form, Input, Select, message, Space, Typography, DatePicker, Card, Row, Col, Divider, Checkbox, Tree } from 'antd'
 import { EditOutlined, DeleteOutlined, SearchOutlined, ExportOutlined, CheckOutlined, UploadOutlined } from '@ant-design/icons'
 import { useSelector, useDispatch } from 'react-redux'
 import { updateTestRecord, deleteTestRecord, addTestRecord, setTestRecords, fetchPhysicalTestHistory } from '../../store/physicalTestSlice'
 import { getTestItemsForGrade } from '../../utils/gradeStageMapping'
 import { parseGradeCode, parseClassCode } from '../../utils/codeMapping'
+import { calculateTotalScore } from '../../utils/scoreStandards'
 import PhysicalTestImportExport from './PhysicalTestImportExport'
 
 import dayjs from 'dayjs'
@@ -27,6 +28,13 @@ const ScoreManagement = () => {
   // 批量操作状态
   const [selectedRowKeys, setSelectedRowKeys] = useState([])
   const [selectedRows, setSelectedRows] = useState([])
+  
+  // 分屏模式状态
+  const [selectedRecord, setSelectedRecord] = useState(null)
+  const [splitHeight, setSplitHeight] = useState(300) // 默认分屏高度
+  const [isResizing, setIsResizing] = useState(false)
+  const [isEditing, setIsEditing] = useState(false)
+  const splitRef = useRef(null)
 
   const dispatch = useDispatch()
   const { testRecords, loading: reduxLoading } = useSelector(state => state.physicalTest)
@@ -210,14 +218,30 @@ const ScoreManagement = () => {
       const updatedRecords = []
       
       data.forEach(item => {
+        // 计算总分和等级
+        let totalScore = item.totalScore || 0
+        let gradeLevel = item.gradeLevel || ''
+        
+        if (Object.keys(item.testItems || {}).length > 0 && !totalScore && !gradeLevel) {
+          const result = calculateTotalScore(item.testItems, item.grade, item.gender)
+          totalScore = result.totalScore
+          gradeLevel = result.gradeLevel
+        }
+        
+        const processedItem = {
+          ...item,
+          totalScore,
+          gradeLevel
+        }
+        
         if (existingRecords.has(item.educationId)) {
           // 更新现有记录
-          updatedRecords.push(item)
+          updatedRecords.push(processedItem)
         } else {
           // 添加新记录
           newRecords.push({
             id: Date.now() + Math.random(), // 生成唯一ID
-            ...item,
+            ...processedItem,
             isApproved: false,
             approvedBy: '',
             approvedTime: ''
@@ -317,6 +341,16 @@ const ScoreManagement = () => {
           // 如果是免测,清空测试项目数据
           const testItems = isExempt ? {} : { ...itemScores }
           
+          // 计算总分和等级
+          let totalScore = 0
+          let gradeLevel = ''
+          
+          if (!isExempt && Object.keys(testItems).length > 0) {
+            const result = calculateTotalScore(testItems, grade, gender)
+            totalScore = result.totalScore
+            gradeLevel = result.gradeLevel
+          }
+          
           const updatedRecord = {
             educationId,
             studentName,
@@ -325,8 +359,8 @@ const ScoreManagement = () => {
             className,
             testDate: testDateStr,
             testItems,
-            totalScore: 0,
-            gradeLevel: '',
+            totalScore,
+            gradeLevel,
             studentStatus,
             remark: remark || ''
           }
@@ -386,6 +420,41 @@ const ScoreManagement = () => {
         message.success('体测记录删除成功')
       }
     })
+  }
+  
+  // 分屏调整事件处理
+  const handleMouseDown = (e) => {
+    setIsResizing(true)
+    document.addEventListener('mousemove', handleMouseMove)
+    document.addEventListener('mouseup', handleMouseUp)
+  }
+  
+  const handleMouseMove = (e) => {
+    if (isResizing && splitRef.current) {
+      const containerRect = splitRef.current.parentElement.getBoundingClientRect()
+      const newHeight = containerRect.height - (e.clientY - containerRect.top)
+      setSplitHeight(Math.max(100, Math.min(newHeight, containerRect.height - 100)))
+    }
+  }
+  
+  const handleMouseUp = () => {
+    setIsResizing(false)
+    document.removeEventListener('mousemove', handleMouseMove)
+    document.removeEventListener('mouseup', handleMouseUp)
+  }
+  
+  // 双击进入编辑模式
+  const handleDoubleClick = () => {
+    if (selectedRecord) {
+      setIsEditing(true)
+      showModal(selectedRecord)
+    }
+  }
+  
+  // 行选择事件
+  const handleRowSelect = (_, record) => {
+    setSelectedRecord(record)
+    setIsEditing(false)
   }
 
   // 移除单个审核功能，因为改为考生状态管理
@@ -627,25 +696,69 @@ const ScoreManagement = () => {
         </Form>
       </Card>
 
-      {filteredData.length > 0 ? (
-        (() => {
-          const { columns, scrollX } = getColumnsWithTestItems()
-          
-          // 分页计算
-          const startIndex = (currentPage - 1) * pageSize
-          const endIndex = startIndex + pageSize
-          const paginatedData = filteredData.slice(startIndex, endIndex)
-          
-          return (
+      {/* 分屏布局 */}
+      <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 200px)', border: '1px solid #f0f0f0', borderRadius: 4, overflow: 'hidden' }}>
+        {/* 上半部分：成绩列表 */}
+        <div style={{ flex: `0 0 ${splitHeight}px`, overflow: 'auto' }}>
+          {filteredData.length > 0 ? (
+            (() => {
+              const { columns, scrollX } = getColumnsWithTestItems()
+              
+              // 分页计算
+              const startIndex = (currentPage - 1) * pageSize
+              const endIndex = startIndex + pageSize
+              const paginatedData = filteredData.slice(startIndex, endIndex)
+              
+              return (
+                <Table
+                  columns={columns}
+                  dataSource={paginatedData}
+                  rowKey="id"
+                  loading={loading}
+                  pagination={{
+                    current: currentPage,
+                    pageSize: pageSize,
+                    total: filteredData.length,
+                    onChange: (page, size) => {
+                      setCurrentPage(page)
+                      setPageSize(size)
+                    },
+                    showSizeChanger: true,
+                    pageSizeOptions: ['10', '20', '50', '100'],
+                    showTotal: (total) => `共 ${total} 条记录`
+                  }}
+                  scroll={{ x: scrollX }}
+                  rowSelection={{
+                    selectedRowKeys,
+                    onChange: (selectedRowKeys, selectedRows) => {
+                      setSelectedRowKeys(selectedRowKeys)
+                      setSelectedRows(selectedRows)
+                    },
+                    getCheckboxProps: (record) => ({
+                      disabled: record.isApproved || String(record.id).startsWith('temp_'),
+                      name: record.studentName,
+                    }),
+                  }}
+                  onRow={(record) => ({
+                    onClick: () => handleRowSelect(null, record),
+                    style: {
+                      backgroundColor: selectedRecord?.id === record.id ? '#f0f7ff' : 'transparent',
+                      cursor: 'pointer'
+                    }
+                  })}
+                />
+              )
+            })()
+          ) : (
             <Table
-              columns={columns}
-              dataSource={paginatedData}
+              columns={baseColumns}
+              dataSource={[]}
               rowKey="id"
               loading={loading}
               pagination={{
-                current: currentPage,
+                current: 1,
                 pageSize: pageSize,
-                total: filteredData.length,
+                total: 0,
                 onChange: (page, size) => {
                   setCurrentPage(page)
                   setPageSize(size)
@@ -654,49 +767,129 @@ const ScoreManagement = () => {
                 pageSizeOptions: ['10', '20', '50', '100'],
                 showTotal: (total) => `共 ${total} 条记录`
               }}
-              scroll={{ x: scrollX }}
+              scroll={{ x: 800 }}
               rowSelection={{
-                selectedRowKeys,
-                onChange: (selectedRowKeys, selectedRows) => {
-                  setSelectedRowKeys(selectedRowKeys)
-                  setSelectedRows(selectedRows)
-                },
-                getCheckboxProps: (record) => ({
-                  disabled: record.isApproved || String(record.id).startsWith('temp_'),
-                  name: record.studentName,
-                }),
+                selectedRowKeys: [],
+                onChange: () => {},
+                getCheckboxProps: () => ({
+                  disabled: true
+                })
               }}
             />
-          )
-        })()
-      ) : (
-        <Table
-          columns={baseColumns}
-          dataSource={[]}
-          rowKey="id"
-          loading={loading}
-          pagination={{
-            current: 1,
-            pageSize: pageSize,
-            total: 0,
-            onChange: (page, size) => {
-              setCurrentPage(page)
-              setPageSize(size)
-            },
-            showSizeChanger: true,
-            pageSizeOptions: ['10', '20', '50', '100'],
-            showTotal: (total) => `共 ${total} 条记录`
+          )}
+        </div>
+        
+        {/* 分割线，支持拖动调整高度 */}
+        <div 
+          ref={splitRef}
+          style={{
+            height: '8px',
+            backgroundColor: '#f0f0f0',
+            cursor: 'ns-resize',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            borderTop: '1px solid #e0e0e0',
+            borderBottom: '1px solid #e0e0e0',
+            userSelect: 'none',
+            ...(isResizing && { backgroundColor: '#1890ff', cursor: 'ns-resize' })
           }}
-          scroll={{ x: 800 }}
-          rowSelection={{
-            selectedRowKeys: [],
-            onChange: () => {},
-            getCheckboxProps: () => ({
-              disabled: true
-            })
+          onMouseDown={handleMouseDown}
+        >
+          <div style={{
+            width: '40px',
+            height: '2px',
+            backgroundColor: '#999',
+            borderRadius: '1px',
+            ...(isResizing && { backgroundColor: '#fff' })
+          }} />
+        </div>
+        
+        {/* 下半部分：成绩详情 */}
+        <div 
+          style={{
+            flex: 1,
+            overflow: 'auto',
+            backgroundColor: '#fafafa',
+            padding: 16
           }}
-        />
-      )}
+          onDoubleClick={handleDoubleClick}
+        >
+          {selectedRecord ? (
+            <Card title="成绩详情" bordered={true}>
+              <Row gutter={16} style={{ marginBottom: 16 }}>
+                <Col span={6}>
+                  <div style={{ fontWeight: 'bold' }}>教育ID:</div>
+                  <div>{selectedRecord.educationId}</div>
+                </Col>
+                <Col span={6}>
+                  <div style={{ fontWeight: 'bold' }}>学生姓名:</div>
+                  <div>{selectedRecord.studentName}</div>
+                </Col>
+                <Col span={6}>
+                  <div style={{ fontWeight: 'bold' }}>性别:</div>
+                  <div>{selectedRecord.gender === 'male' ? '男' : '女'}</div>
+                </Col>
+                <Col span={6}>
+                  <div style={{ fontWeight: 'bold' }}>年级:</div>
+                  <div>{selectedRecord.grade}</div>
+                </Col>
+              </Row>
+              
+              <Row gutter={16} style={{ marginBottom: 16 }}>
+                <Col span={6}>
+                  <div style={{ fontWeight: 'bold' }}>班级:</div>
+                  <div>{selectedRecord.className}</div>
+                </Col>
+                <Col span={6}>
+                  <div style={{ fontWeight: 'bold' }}>测试日期:</div>
+                  <div>{selectedRecord.testDate}</div>
+                </Col>
+                <Col span={6}>
+                  <div style={{ fontWeight: 'bold' }}>总分:</div>
+                  <div style={{ fontSize: 18, color: '#1890ff', fontWeight: 'bold' }}>{selectedRecord.totalScore}</div>
+                </Col>
+                <Col span={6}>
+                  <div style={{ fontWeight: 'bold' }}>等级:</div>
+                  <div>{selectedRecord.gradeLevel}</div>
+                </Col>
+              </Row>
+              
+              <Divider orientation="left">测试项目成绩</Divider>
+              
+              <Row gutter={16}>
+                {(() => {
+                  const grade = selectedRecord.grade
+                  const gender = selectedRecord.gender
+                  const items = getVisibleTestItems(grade, gender)
+                  return items.map(item => (
+                    <Col span={12} key={item.code}>
+                      <Row gutter={8} align="middle">
+                        <Col span={12}>
+                          <div>{item.name}:</div>
+                        </Col>
+                        <Col span={12}>
+                          <div style={{ textAlign: 'right', fontWeight: 'bold' }}>
+                            {selectedRecord.testItems[item.code] || '-'}
+                          </div>
+                        </Col>
+                      </Row>
+                    </Col>
+                  ))
+                })()}
+              </Row>
+              
+              <div style={{ marginTop: 24, textAlign: 'center', color: '#999', fontSize: 14 }}>
+                双击此处可进入编辑模式
+              </div>
+            </Card>
+          ) : (
+            <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%', color: '#999' }}>
+              请选择一条记录查看详情
+            </div>
+          )}
+        </div>
+      </div>
 
       <Modal
         title="编辑体测成绩"

@@ -1,7 +1,7 @@
 import { Layout as AntLayout, Menu } from 'antd'
 import { DashboardOutlined, TeamOutlined, UserOutlined, BookOutlined, LogoutOutlined, BookOutlined as SchoolOutlined, LineChartOutlined, SettingOutlined, FileTextOutlined, DatabaseOutlined, TrophyOutlined } from '@ant-design/icons'
 import { Link, useLocation } from 'react-router-dom'
-import { useDispatch } from 'react-redux'
+import { useDispatch, useSelector } from 'react-redux'
 import { logout } from '../../store/authSlice'
 
 const { Sider } = AntLayout
@@ -9,6 +9,64 @@ const { Sider } = AntLayout
 const Sidebar = () => {
   const location = useLocation()
   const dispatch = useDispatch()
+  const { user, isAuthenticated } = useSelector(state => state.auth)
+
+  // 获取当前用户角色
+  const getUserRole = () => {
+    return user?.role || 'student' // 默认角色为学生
+  }
+
+  // 定义菜单项的角色权限
+  const menuPermissions = {
+    dashboard: ['admin', 'teacher', 'student', 'parent'],
+    schoolInfo: ['admin', 'teacher'],
+    classes: ['admin', 'teacher'],
+    students: ['admin', 'teacher'],
+    users: ['admin'],
+    schoolYearManagement: ['admin', 'teacher'],
+    studentHistory: ['admin', 'teacher', 'student'],
+    physicalTestDashboard: ['admin', 'teacher', 'student'],
+    testItems: ['admin', 'teacher'],
+    scoreManagement: ['admin', 'teacher'],
+    statistics: ['admin', 'teacher'],
+    scoreStandards: ['admin', 'teacher', 'student'],
+    sportsMeetDashboard: ['admin', 'teacher', 'student'],
+    sportsMeetManagement: ['admin'],
+    eventManagement: ['admin'],
+    registrationManagement: ['admin', 'teacher'],
+    registrationAudit: ['admin', 'teacher'],
+    sportsMeetScheduling: ['admin', 'teacher'],
+    registrationStatistics: ['admin', 'teacher'],
+    resultRecord: ['admin', 'teacher'],
+    reportGeneration: ['admin', 'teacher'],
+    refereeManagement: ['admin', 'teacher'],
+    venueManagement: ['admin', 'teacher'],
+    testComponent: ['admin', 'teacher']
+  }
+
+  // 过滤菜单项，只显示当前角色有权访问的项目
+  const filterMenuItemsByRole = (items) => {
+    const currentRole = getUserRole()
+    return items.filter(item => {
+      // 检查当前菜单项是否有权限
+      if (!menuPermissions[item.key]) return true // 没有定义权限的菜单项默认显示
+      
+      // 检查当前角色是否有权限访问
+      const hasPermission = menuPermissions[item.key].includes(currentRole)
+      
+      // 如果是父菜单项，检查是否有子菜单项有权限
+      if (hasPermission && item.children) {
+        const filteredChildren = filterMenuItemsByRole(item.children)
+        if (filteredChildren.length > 0) {
+          item.children = filteredChildren
+          return true
+        }
+        return false
+      }
+      
+      return hasPermission
+    })
+  }
 
   // 获取当前路由对应的菜单key
   const getSelectedKey = () => {
@@ -24,6 +82,7 @@ const Sidebar = () => {
     if (path === '/physical-test/test-items') return 'testItems'
     if (path === '/physical-test/score-management') return 'scoreManagement'
     if (path === '/physical-test/statistics') return 'statistics'
+    if (path === '/physical-test/score-standards') return 'scoreStandards'
     if (path === '/sports-meet') return 'sportsMeetDashboard'
     if (path === '/sports-meet/management') return 'sportsMeetManagement'
     if (path === '/sports-meet/events') return 'eventManagement'
@@ -35,6 +94,7 @@ const Sidebar = () => {
     if (path === '/sports-meet/reports') return 'reportGeneration'
     if (path === '/sports-meet/referees') return 'refereeManagement'
     if (path === '/sports-meet/venues') return 'venueManagement'
+    if (path === '/sports-meet/test') return 'testComponent'
     return 'dashboard'
   }
 
@@ -91,32 +151,36 @@ const Sidebar = () => {
       ]
     },
     {
-      key: 'physicalTest',
-      icon: <LineChartOutlined />,
-      label: '体测系统',
-      children: [
-        {
-          key: 'physicalTestDashboard',
-          label: <Link to="/physical-test">体测仪表盘</Link>
+          key: 'physicalTest',
+          icon: <LineChartOutlined />,
+          label: '体测系统',
+          children: [
+            {
+              key: 'physicalTestDashboard',
+              label: <Link to="/physical-test">体测仪表盘</Link>
+            },
+            {
+              key: 'testItems',
+              label: <Link to="/physical-test/test-items">测试项目</Link>
+            },
+            {
+              key: 'scoreStandards',
+              label: <Link to="/physical-test/score-standards">评分标准</Link>
+            },
+            {
+              key: 'scoreManagement',
+              label: <Link to="/physical-test/score-management">成绩管理</Link>
+            },
+            {
+              key: 'statistics',
+              label: <Link to="/physical-test/statistics">统计分析</Link>
+            },
+            {
+              key: 'studentHistory',
+              label: <Link to="/student-history">历史数据查询</Link>
+            }
+          ]
         },
-        {
-          key: 'testItems',
-          label: <Link to="/physical-test/test-items">测试项目</Link>
-        },
-        {
-          key: 'scoreManagement',
-          label: <Link to="/physical-test/score-management">成绩管理</Link>
-        },
-        {
-          key: 'statistics',
-          label: <Link to="/physical-test/statistics">统计分析</Link>
-        },
-        {
-          key: 'studentHistory',
-          label: <Link to="/student-history">历史数据查询</Link>
-        }
-      ]
-    },
     {
       key: 'sportsMeet',
       icon: <TrophyOutlined />,
@@ -187,6 +251,10 @@ const Sidebar = () => {
             {
               key: 'reportGeneration',
               label: <Link to="/sports-meet/reports">报表生成</Link>
+            },
+            {
+              key: 'testComponent',
+              label: <Link to="/sports-meet/test">测试组件</Link>
             }
           ]
         }
@@ -224,7 +292,7 @@ const Sidebar = () => {
       </div>
       <Menu
         mode="inline"
-        items={menuItems}
+        items={filterMenuItemsByRole(menuItems)}
         selectedKeys={[getSelectedKey()]}
         style={{ borderRight: 0 }}
       />

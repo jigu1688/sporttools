@@ -4,49 +4,35 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from typing import List, Optional
-from database import SessionLocal
+from database import get_db
 from crud import student_crud, class_crud, school_crud
 from schemas import (
     StudentCreate, StudentUpdate, StudentResponse, StudentDetailResponse,
     StudentListResponse, StudentQueryParams, BaseResponse, ErrorResponse,
     ClassResponse, SchoolResponse
 )
-from models import GenderEnum, StatusEnum, SportsLevelEnum
+from models import GenderEnum, StatusEnum, SportsLevelEnum, User
+from auth import get_current_user
 import models
 
 # 创建路由器
-router = APIRouter(prefix="/api/v1/students", tags=["students"])
-
-# 依赖注入：获取数据库会话
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
+router = APIRouter(tags=["students"])
 
 @router.get("/", response_model=StudentListResponse)
 async def get_students(
     page: int = Query(1, ge=1, description="页码"),
     page_size: int = Query(10, ge=1, le=100, description="每页数量"),
-    search: Optional[str] = Query(None, description="搜索关键词（姓名、学籍号、身份证号）"),
+    search: Optional[str] = Query(None, description="搜索关键词"),
     class_id: Optional[int] = Query(None, description="班级ID"),
     grade: Optional[str] = Query(None, description="年级"),
-    gender: Optional[GenderEnum] = Query(None, description="性别"),
-    status: Optional[StatusEnum] = Query(None, description="状态"),
-    sports_level: Optional[SportsLevelEnum] = Query(None, description="体育水平"),
-    db: Session = Depends(get_db)
+    gender: Optional[str] = Query(None, description="性别"),
+    status: Optional[str] = Query(None, description="状态"),
+    include_class: bool = Query(True, description="是否包含班级信息"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
 ):
     """
-    获取学生列表
-    
-    支持分页、搜索和多条件过滤：
-    - 搜索：按姓名、学籍号、身份证号模糊搜索
-    - 班级过滤：按班级ID过滤
-    - 年级过滤：按年级过滤
-    - 性别过滤：按性别过滤
-    - 状态过滤：按状态过滤
-    - 体育水平过滤：按体育水平过滤
+    获取学生列表，支持分页、搜索和多条件过滤
     """
     try:
         # 构建查询参数
@@ -57,12 +43,11 @@ async def get_students(
             class_id=class_id,
             grade=grade,
             gender=gender,
-            status=status,
-            sports_level=sports_level
+            status=status
         )
         
-        # 获取学生列表和总数
-        students, total = student_crud.get_students(db, params)
+        # 使用包含班级信息的方法
+        students, total = student_crud.get_students_with_class(db, params)
         
         # 计算分页信息
         total_pages = (total + page_size - 1) // page_size
@@ -72,14 +57,14 @@ async def get_students(
             page=page,
             page_size=page_size,
             total_pages=total_pages,
-            items=[StudentResponse.model_validate(student) for student in students]
+            items=students  # 已经是字典列表
         )
         
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"获取学生列表失败: {str(e)}")
 
 @router.get("/{student_id}", response_model=StudentDetailResponse)
-async def get_student(student_id: int, db: Session = Depends(get_db)):
+async def get_student(student_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     """
     获取学生详细信息
     
@@ -105,7 +90,7 @@ async def get_student(student_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=500, detail=f"获取学生信息失败: {str(e)}")
 
 @router.post("/", response_model=StudentResponse, status_code=201)
-async def create_student(student_data: StudentCreate, db: Session = Depends(get_db)):
+async def create_student(student_data: StudentCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     """
     创建新学生
     
@@ -128,7 +113,7 @@ async def create_student(student_data: StudentCreate, db: Session = Depends(get_
         raise HTTPException(status_code=500, detail=f"创建学生失败: {str(e)}")
 
 @router.put("/{student_id}", response_model=StudentResponse)
-async def update_student(student_id: int, student_data: StudentUpdate, db: Session = Depends(get_db)):
+async def update_student(student_id: int, student_data: StudentUpdate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     """
     更新学生信息
     
@@ -151,7 +136,7 @@ async def update_student(student_id: int, student_data: StudentUpdate, db: Sessi
         raise HTTPException(status_code=500, detail=f"更新学生信息失败: {str(e)}")
 
 @router.delete("/{student_id}", response_model=BaseResponse)
-async def delete_student(student_id: int, db: Session = Depends(get_db)):
+async def delete_student(student_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     """
     删除学生
     
@@ -176,7 +161,7 @@ async def delete_student(student_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=500, detail=f"删除学生失败: {str(e)}")
 
 @router.get("/{student_id}/classes", response_model=List[dict])
-async def get_student_classes(student_id: int, db: Session = Depends(get_db)):
+async def get_student_classes(student_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     """
     获取学生的班级历史
     
@@ -204,7 +189,8 @@ async def assign_student_to_class(
     class_id: int,
     academic_year: str,
     join_date: Optional[str] = None,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
 ):
     """
     将学生分配到班级
@@ -255,7 +241,8 @@ async def remove_student_from_class(
     class_id: int,
     academic_year: str,
     leave_date: Optional[str] = None,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
 ):
     """
     将学生从班级中移除
@@ -291,7 +278,7 @@ async def remove_student_from_class(
         raise HTTPException(status_code=500, detail=f"从班级移除学生失败: {str(e)}")
 
 @router.get("/{student_id}/history")
-async def get_student_history(student_id: int, db: Session = Depends(get_db)):
+async def get_student_history(student_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     """
     获取学生历史记录，包含基本信息和体测成绩
     

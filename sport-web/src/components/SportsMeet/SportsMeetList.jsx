@@ -1,8 +1,8 @@
-import React, { useState } from 'react'
-import { Table, Button, Modal, Form, Input, DatePicker, Select, Space, Typography, message } from 'antd'
+import React, { useState, useEffect } from 'react'
+import { Table, Button, Modal, Form, Input, DatePicker, Select, Space, Typography, message, Spin } from 'antd'
 import { EditOutlined, DeleteOutlined, PlusOutlined, EyeOutlined } from '@ant-design/icons'
 import { useSelector, useDispatch } from 'react-redux'
-import { setSportsMeets, addSportsMeet, updateSportsMeet, deleteSportsMeet } from '../../store/sportsMeetSlice'
+import { fetchSportsMeets, createSportsMeet, updateSportsMeetById, deleteSportsMeetById } from '../../store/sportsMeetSlice'
 import dayjs from 'dayjs'
 
 const { Title } = Typography
@@ -16,30 +16,12 @@ const SportsMeetList = () => {
   const [viewData, setViewData] = useState(null)
   
   const dispatch = useDispatch()
-  const { sportsMeets } = useSelector(state => state.sportsMeet)
+  const { sportsMeets, loading, error } = useSelector(state => state.sportsMeet)
   
-  // 初始化数据
-  React.useEffect(() => {
-    const mockData = [
-      {
-        id: '1',
-        name: '2025-2026学年春季运动会',
-        startDate: '2026-04-15',
-        endDate: '2026-04-17',
-        status: '筹备中'
-      },
-      {
-        id: '2',
-        name: '2024-2025学年秋季运动会',
-        startDate: '2024-10-20',
-        endDate: '2024-10-22',
-        status: '已结束'
-      }
-    ]
-    if (sportsMeets.length === 0) {
-      dispatch(setSportsMeets(mockData))
-    }
-  }, [sportsMeets, dispatch])
+  // 从API获取运动会列表
+  useEffect(() => {
+    dispatch(fetchSportsMeets())
+  }, [dispatch])
   
   // 显示创建/编辑模态框
   const showModal = (record = null) => {
@@ -68,28 +50,41 @@ const SportsMeetList = () => {
   const handleOk = () => {
     form.validateFields()
       .then(values => {
+        // 将前端驼峰式字段转换为后端下划线式字段
         const sportsMeetData = {
           name: values.name,
-          startDate: values.dateRange[0].format('YYYY-MM-DD'),
-          endDate: values.dateRange[1].format('YYYY-MM-DD'),
+          start_date: values.dateRange[0].format('YYYY-MM-DD'),
+          end_date: values.dateRange[1].format('YYYY-MM-DD'),
           status: values.status || '筹备中'
         }
         
         if (editingId) {
           // 更新运动会
-          const updatedSportsMeet = { ...sportsMeetData, id: editingId }
-          dispatch(updateSportsMeet(updatedSportsMeet))
-          message.success('运动会更新成功')
+          dispatch(updateSportsMeetById({ sportsMeetId: editingId, sportsMeetData }))
+            .unwrap()
+            .then(() => {
+              message.success('运动会更新成功')
+              setIsModalVisible(false)
+              setEditingId(null)
+              form.resetFields()
+            })
+            .catch(error => {
+              message.error(error || '运动会更新失败')
+            })
         } else {
           // 创建运动会
-          const newSportsMeet = { ...sportsMeetData, id: Date.now().toString() }
-          dispatch(addSportsMeet(newSportsMeet))
-          message.success('运动会创建成功')
+          dispatch(createSportsMeet(sportsMeetData))
+            .unwrap()
+            .then(() => {
+              message.success('运动会创建成功')
+              setIsModalVisible(false)
+              setEditingId(null)
+              form.resetFields()
+            })
+            .catch(error => {
+              message.error(error || '运动会创建失败')
+            })
         }
-        
-        setIsModalVisible(false)
-        setEditingId(null)
-        form.resetFields()
       })
       .catch(info => {
         // console.log('表单验证失败:', info)
@@ -105,8 +100,14 @@ const SportsMeetList = () => {
       okType: 'danger',
       cancelText: '取消',
       onOk: () => {
-        dispatch(deleteSportsMeet(id))
-        message.success('运动会删除成功')
+        dispatch(deleteSportsMeetById(id))
+          .unwrap()
+          .then(() => {
+            message.success('运动会删除成功')
+          })
+          .catch(error => {
+            message.error(error || '运动会删除失败')
+          })
       }
     })
   }
@@ -178,13 +179,21 @@ const SportsMeetList = () => {
         </Button>
       </Space>
       
-      <Table
-        columns={columns}
-        dataSource={sportsMeets}
-        rowKey="id"
-        bordered
-        pagination={false}
-      />
+      {error && (
+        <div style={{ marginBottom: 16, color: '#ff4d4f' }}>
+          错误：{error}
+        </div>
+      )}
+      
+      <Spin spinning={loading}>
+        <Table
+          columns={columns}
+          dataSource={sportsMeets}
+          rowKey="id"
+          bordered
+          pagination={false}
+        />
+      </Spin>
       
       {/* 创建/编辑模态框 */}
       <Modal

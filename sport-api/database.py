@@ -10,7 +10,11 @@ engine = create_engine(
     settings.database_url,
     echo=settings.debug,  # 开发环境下打印SQL语句
     pool_pre_ping=True,   # 连接池预检查
-    pool_recycle=300      # 连接回收时间（5分钟）
+    pool_recycle=300,     # 连接回收时间（5分钟）
+    pool_size=10,         # 连接池大小
+    max_overflow=20,      # 最大溢出连接数
+    pool_timeout=30,      # 获取连接超时时间（秒）
+    pool_use_lifo=True    # 使用后进先出策略
 )
 
 # 创建会话工厂

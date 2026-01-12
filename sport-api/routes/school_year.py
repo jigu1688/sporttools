@@ -11,7 +11,7 @@ from auth import get_current_user, require_permissions, PermissionType
 from models import User, SchoolYearStatusEnum
 
 # 创建路由器
-router = APIRouter(prefix="/api/v1/school-years", tags=["school-years"])
+router = APIRouter(tags=["school-years"])
 
 # 获取学年列表
 @router.get("", response_model=List[SchoolYearResponse])
@@ -219,6 +219,48 @@ async def complete_school_year(
             detail=f"结束学年失败: {str(e)}"
         )
 
+# 学年升级 - 升级班级名称和学生年级
+@router.post("/{school_year_id}/promote")
+@require_permissions([PermissionType.USER_MANAGE])
+async def promote_school_year(
+    school_year_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    学年升级 - 将所有班级和学生升级到下一年级
+    
+    升级逻辑：
+    - 一年级 -> 二年级 (grade_level: 1 -> 2)
+    - 六年级 -> 七年级 (grade_level: 6 -> 7, 小升初)
+    - 九年级学生 -> 标记为毕业
+    """
+    try:
+        # 检查学年是否存在
+        existing_year = school_year_crud.get_school_year(db, school_year_id)
+        if not existing_year:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="学年不存在"
+            )
+        
+        # 调用升级逻辑
+        result = school_year_crud.promote_grades(db, school_year_id)
+        
+        return {
+            "message": "学年升级成功",
+            "promoted_classes": result.get("promoted_classes", 0),
+            "promoted_students": result.get("promoted_students", 0),
+            "graduated_students": result.get("graduated_students", 0)
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"学年升级失败: {str(e)}"
+        )
+
 # 获取当前活跃学年
 @router.get("/active/current", response_model=SchoolYearResponse)
 async def get_active_school_year(
@@ -241,4 +283,55 @@ async def get_active_school_year(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"获取当前学年失败: {str(e)}"
+        )
+
+
+# 获取学年统计信息
+@router.get("/{school_year_id}/statistics")
+async def get_school_year_statistics(
+    school_year_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """获取学年统计信息：班级数量、学生数量等"""
+    from models import Class, Student, StudentClassRelation
+    from sqlalchemy import func
+    
+    try:
+        # 检查学年是否存在
+        school_year = school_year_crud.get_school_year(db, school_year_id)
+        if not school_year:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="学年不存在"
+            )
+        
+        # 统计该学年的班级数量
+        class_count = db.query(Class).filter(Class.school_year_id == school_year_id).count()
+        
+        # 统计该学年的学生数量（通过班级关联）
+        student_count = db.query(StudentClassRelation).join(
+            Class, StudentClassRelation.class_id == Class.id
+        ).filter(Class.school_year_id == school_year_id).count()
+        
+        # 按年级统计班级数量
+        grade_stats = db.query(
+            Class.grade_level,
+            func.count(Class.id).label('class_count')
+        ).filter(Class.school_year_id == school_year_id).group_by(Class.grade_level).all()
+        
+        grades = {str(grade): count for grade, count in grade_stats}
+        
+        return {
+            "school_year_id": school_year_id,
+            "class_count": class_count,
+            "student_count": student_count,
+            "grades": grades
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"获取学年统计失败: {str(e)}"
         )

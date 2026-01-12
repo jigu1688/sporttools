@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Table, Button, Modal, Form, Input, Select, message } from 'antd';
 import { PlusOutlined, EditOutlined, DeleteOutlined, SearchOutlined } from '@ant-design/icons';
 import { useSelector, useDispatch } from 'react-redux';
-import { setVenues, addVenue, updateVenue, deleteVenue } from '../../store/sportsMeetSlice';
+import { fetchVenues, createVenue, updateVenueById, deleteVenueById } from '../../store/sportsMeetSlice';
 
 const { Option } = Select;
 const { Search } = Input;
@@ -18,14 +18,8 @@ const VenueManagement = () => {
   const [searchText, setSearchText] = useState('');
 
   useEffect(() => {
-    // 模拟数据，后续将从API获取
-    const mockVenues = [
-      { id: 'V001', name: '田径场', type: 'track', capacity: 500, status: 'available', location: '学校东侧' },
-      { id: 'V002', name: '篮球场', type: 'basketball_court', capacity: 100, status: 'available', location: '学校南侧' },
-      { id: 'V003', name: '体育馆', type: 'gym', capacity: 1000, status: 'available', location: '学校北侧' },
-      { id: 'V004', name: '游泳池', type: 'swimming_pool', capacity: 50, status: 'unavailable', location: '学校西侧' }
-    ];
-    dispatch(setVenues(mockVenues));
+    // 从API获取场馆数据
+    dispatch(fetchVenues());
   }, [dispatch]);
 
   // 监听Modal状态变化
@@ -38,7 +32,7 @@ const VenueManagement = () => {
     if (!venues) return [];
     return venues.filter(venue => 
       venue.name.toLowerCase().includes(searchText.toLowerCase()) ||
-      venue.id.toLowerCase().includes(searchText.toLowerCase())
+      String(venue.id).toLowerCase().includes(searchText.toLowerCase())
     );
   }, [venues, searchText]);
 
@@ -70,20 +64,19 @@ const VenueManagement = () => {
       
       if (isEditMode) {
         // 编辑模式：使用保存的ID
-        dispatch(updateVenue({ ...processedValues, id: editingId }));
+        await dispatch(updateVenueById({ venueId: editingId, venueData: processedValues })).unwrap();
         message.success('场地信息更新成功');
       } else {
-        // 添加模式：生成新ID
-        const newId = 'V' + String(Date.now()).slice(-6);
-        dispatch(addVenue({ ...processedValues, id: newId }));
+        // 添加模式：使用真实API创建
+        await dispatch(createVenue(processedValues)).unwrap();
         message.success('场地信息添加成功');
       }
       setIsModalVisible(false);
       form.resetFields();
       setEditingId(null);
     } catch (error) {
-      // console.error('表单验证失败:', error);
-      message.error('表单验证失败，请检查输入');
+      // console.error('操作失败:', error);
+      message.error(error || '操作失败，请检查输入');
     }
   };
 
@@ -97,9 +90,13 @@ const VenueManagement = () => {
     Modal.confirm({
       title: '确认删除',
       content: '确定要删除该场地信息吗？',
-      onOk() {
-        dispatch(deleteVenue(id));
-        message.success('场地信息删除成功');
+      onOk: async () => {
+        try {
+          await dispatch(deleteVenueById(id)).unwrap();
+          message.success('场地信息删除成功');
+        } catch (error) {
+          message.error(error || '删除失败，请重试');
+        }
       }
     });
   };

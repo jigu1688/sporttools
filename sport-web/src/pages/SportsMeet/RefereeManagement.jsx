@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Table, Button, Modal, Form, Input, Select, message } from 'antd';
 import { PlusOutlined, EditOutlined, DeleteOutlined, SearchOutlined } from '@ant-design/icons';
 import { useSelector, useDispatch } from 'react-redux';
-import { setReferees, addReferee, updateReferee, deleteReferee } from '../../store/sportsMeetSlice';
+import { fetchReferees, createReferee, updateRefereeById, deleteRefereeById } from '../../store/sportsMeetSlice';
 
 const { Option } = Select;
 const { Search } = Input;
@@ -18,13 +18,8 @@ const RefereeManagement = () => {
   const [searchText, setSearchText] = useState('');
 
   useEffect(() => {
-    // 模拟数据，后续将从API获取
-    const mockReferees = [
-      { id: 'R001', name: '张三', gender: 'male', phone: '13800138001', specialty: '田径', status: 'available' },
-      { id: 'R002', name: '李四', gender: 'female', phone: '13800138002', specialty: '篮球', status: 'available' },
-      { id: 'R003', name: '王五', gender: 'male', phone: '13800138003', specialty: '游泳', status: 'unavailable' }
-    ];
-    dispatch(setReferees(mockReferees));
+    // 从API获取裁判数据
+    dispatch(fetchReferees());
   }, [dispatch]);
 
   // 监听Modal状态变化
@@ -37,7 +32,7 @@ const RefereeManagement = () => {
     if (!referees) return [];
     return referees.filter(referee => 
       referee.name.toLowerCase().includes(searchText.toLowerCase()) ||
-      referee.id.toLowerCase().includes(searchText.toLowerCase())
+      String(referee.id).toLowerCase().includes(searchText.toLowerCase())
     );
   }, [referees, searchText]);
 
@@ -63,20 +58,19 @@ const RefereeManagement = () => {
       const values = await form.validateFields();
       if (isEditMode) {
         // 编辑模式：使用保存的ID
-        dispatch(updateReferee({ ...values, id: editingId }));
+        await dispatch(updateRefereeById({ refereeId: editingId, refereeData: values })).unwrap();
         message.success('裁判员信息更新成功');
       } else {
-        // 添加模式：生成新ID
-        const newId = 'R' + String(Date.now()).slice(-6);
-        dispatch(addReferee({ ...values, id: newId }));
+        // 添加模式：使用真实API创建
+        await dispatch(createReferee(values)).unwrap();
         message.success('裁判员信息添加成功');
       }
       setIsModalVisible(false);
       form.resetFields();
       setEditingId(null);
     } catch (error) {
-      // console.error('表单验证失败:', error);
-      message.error('表单验证失败，请检查输入');
+      // console.error('操作失败:', error);
+      message.error(error || '操作失败，请检查输入');
     }
   };
 
@@ -90,9 +84,13 @@ const RefereeManagement = () => {
     Modal.confirm({
       title: '确认删除',
       content: '确定要删除该裁判员信息吗？',
-      onOk() {
-        dispatch(deleteReferee(id));
-        message.success('裁判员信息删除成功');
+      onOk: async () => {
+        try {
+          await dispatch(deleteRefereeById(id)).unwrap();
+          message.success('裁判员信息删除成功');
+        } catch (error) {
+          message.error(error || '删除失败，请重试');
+        }
       }
     });
   };
