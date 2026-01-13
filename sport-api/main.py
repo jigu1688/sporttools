@@ -23,6 +23,7 @@ from routes.logs import router as logs_router
 from routes.sports_meet import router as sports_meet_router
 from routes.school import router as school_router
 from routes.debug import router as debug_router
+from routes.dashboard import router as dashboard_router
 
 # 创建FastAPI应用实例
 app = FastAPI(
@@ -47,11 +48,14 @@ from config import settings
 
 # 根据环境动态配置CORS
 if not settings.debug:
-    # 生产环境：仅允许配置的生产域名
-    cors_origins = [
-        "http://your-production-domain.com",
-        "https://your-production-domain.com"
-    ]
+    # 生产环境：使用环境变量配置的生产域名
+    if settings.production_domain:
+        cors_origins = [
+            f"http://{settings.production_domain}",
+            f"https://{settings.production_domain}"
+        ]
+    else:
+        cors_origins = []
     # 生产环境配置更严格的CORS策略
     app.add_middleware(
         CORSMiddleware,
@@ -83,7 +87,10 @@ app.include_router(physical_test_router, prefix="/api/v1/physical-tests")
 app.include_router(logs_router, prefix="/api/v1/logs")
 app.include_router(sports_meet_router, prefix="/api/v1/sports-meets")
 app.include_router(school_router, prefix="/api/v1/schools")
-app.include_router(debug_router, prefix="/api/v1/debug")
+app.include_router(dashboard_router, prefix="/api/v1/dashboard")
+# 仅在开发环境下注册debug路由
+if settings.debug:
+    app.include_router(debug_router, prefix="/api/v1/debug")
 
 # 异常处理
 from fastapi import Request

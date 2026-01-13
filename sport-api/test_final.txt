@@ -1,0 +1,36 @@
+﻿============================================================
+寮€濮嬫祴璇?academic_year 绉婚櫎鍜?school_year_id 鏁村悎
+============================================================
+
+[娴嬭瘯] 鐧诲綍...
+鉁?鐧诲綍鎴愬姛锛宼oken: eyJhbGciOiJIUzI1NiIs...
+
+[娴嬭瘯] 鍒涘缓鐝骇...
+鉁?鍒涘缓鐝骇鎴愬姛: 4 - 娴嬭瘯鐝骇-195045
+  - school_year_id: 1
+  鉁?鍝嶅簲涓棤 academic_year锛堢鍚堥鏈燂級
+
+[娴嬭瘯] 鍒涘缓瀛︾敓...
+鉁?鍒涘缓瀛︾敓鎴愬姛: 5 - 娴嬭瘯瀛︾敓-195045
+  鉁?鍝嶅簲涓棤 academic_year锛堢鍚堥鏈燂級
+
+[娴嬭瘯] 鍒嗛厤瀛︾敓鍒扮彮绾?..
+鉂?鍒嗛厤瀛︾敓澶辫触: 500 - {"detail":"鍒嗛厤瀛︾敓鍒扮彮绾уけ璐? Instance <StudentClassRelation at 0x216b38b4550> has a NULL identity key.  If this is an auto-generated value, check that the database table allows generation of new primary key values, and that the mapped Column object is configured to expect these generated values.  Ensure also that this flush() is not occurring at an inappropriate time, such as within a load() event.","status_code":500,"error":"HTTPException","timestamp":null}
+
+[娴嬭瘯] 鏌ヨ鐝骇瀛︾敓鍒楄〃...
+鉁?鏌ヨ鐝骇瀛︾敓鎴愬姛: 鑾峰彇 0 鍚嶅鐢?
+
+[娴嬭瘯] 鏌ヨ浣撴祴鍘嗗彶...
+鉁?鏌ヨ浣撴祴鍘嗗彶鎴愬姛: 鑾峰彇 0 鏉¤褰?
+
+============================================================
+娴嬭瘯鎬荤粨
+============================================================
+鉁?PASS: 鐧诲綍
+鉁?PASS: 鍒涘缓鐝骇
+鉁?PASS: 鍒涘缓瀛︾敓
+鉂?FAIL: 鍒嗛厤瀛︾敓鍒扮彮绾?
+鉁?PASS: 鏌ヨ鐝骇瀛︾敓鍒楄〃
+鉁?PASS: 鏌ヨ浣撴祴鍘嗗彶
+
+閫氳繃鐜? 5/6 (83%)

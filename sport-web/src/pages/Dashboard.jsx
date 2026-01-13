@@ -1,36 +1,65 @@
-import { Card, Row, Col, Statistic, Typography, Table, Tag } from 'antd'
-import { UserOutlined, TeamOutlined, BookOutlined, CalendarOutlined } from '@ant-design/icons'
-import { useSelector } from 'react-redux'
+import { Card, Row, Col, Statistic, Typography, Table, Tag, Spin, Empty } from 'antd'
+import { UserOutlined, TeamOutlined, BookOutlined, CheckCircleOutlined, PercentageOutlined, PlusCircleOutlined } from '@ant-design/icons'
+import { useEffect, useState } from 'react'
+import apiClient from '../utils/apiClient'
 
 const { Title } = Typography
 
 const Dashboard = () => {
-  const { classes, students, users } = useSelector(state => state.data)
+  const [loading, setLoading] = useState(true)
+  const [overview, setOverview] = useState({
+    totalClasses: 0,
+    totalStudents: 0,
+    totalUsers: 0,
+    testedStudents: 0,
+    todayNewStudents: 0,
+    testCompletionRate: 0
+  })
+  const [recentActivities, setRecentActivities] = useState([])
+  const [classRanking, setClassRanking] = useState([])
 
-  // 计算统计数据
+  // 获取仪表盘数据
+  useEffect(() => {
+    const fetchDashboardData = async () => {
+      setLoading(true)
+      try {
+        // 并行获取所有数据
+        const [overviewRes, activitiesRes, rankingRes] = await Promise.all([
+          apiClient.get('/dashboard/overview'),
+          apiClient.get('/dashboard/recent-activities?limit=5'),
+          apiClient.get('/dashboard/class-ranking?limit=5')
+        ])
+        
+        setOverview(overviewRes)
+        setRecentActivities(activitiesRes)
+        setClassRanking(rankingRes)
+      } catch (error) {
+        console.error('获取仪表盘数据失败:', error)
+      } finally {
+        setLoading(false)
+      }
+    }
+    
+    fetchDashboardData()
+  }, [])
+
+  // 统计数据卡片配置
   const statistics = [
-    { title: '总班级数', value: classes.length, icon: <BookOutlined />, color: '#1890ff', suffix: '个' },
-    { title: '总学生数', value: students.length, icon: <TeamOutlined />, color: '#52c41a', suffix: '人' },
-    { title: '总用户数', value: users.length, icon: <UserOutlined />, color: '#faad14', suffix: '人' },
-    { title: '今日课程', value: 8, icon: <CalendarOutlined />, color: '#f5222d', suffix: '节' } // 模拟数据，实际应从课程表获取
+    { title: '总班级数', value: overview.totalClasses, icon: <BookOutlined />, color: '#1890ff', suffix: '个' },
+    { title: '总学生数', value: overview.totalStudents, icon: <TeamOutlined />, color: '#52c41a', suffix: '人' },
+    { title: '总用户数', value: overview.totalUsers, icon: <UserOutlined />, color: '#faad14', suffix: '人' },
+    { title: '已体测学生', value: overview.testedStudents, icon: <CheckCircleOutlined />, color: '#722ed1', suffix: '人' },
+    { title: '体测完成率', value: overview.testCompletionRate, icon: <PercentageOutlined />, color: '#13c2c2', suffix: '%' },
+    { title: '今日新增', value: overview.todayNewStudents, icon: <PlusCircleOutlined />, color: '#f5222d', suffix: '人' }
   ]
 
-  // 生成近期活动（模拟）
-  const recentActivities = [
-    { id: 1, title: `${classes[0]?.grade || '一年级'} ${classes[0]?.className || '主校区1班'} 新增3名学生`, time: '2小时前', status: 'success' },
-    { id: 2, title: `${classes[1]?.grade || '二年级'} ${classes[1]?.className || '主校区2班'} 课程调整`, time: '4小时前', status: 'info' },
-    { id: 3, title: '游泳三班考试成绩发布', time: '1天前', status: 'warning' },
-    { id: 4, title: '新用户管理员创建', time: '2天前', status: 'success' },
-    { id: 5, title: '羽毛球四班状态变更', time: '3天前', status: 'error' }
-  ]
-
-  // 生成班级排名（使用固定值模拟）
-  const classRanking = classes.map(cls => ({
-    id: cls.id,
-    name: `${cls.grade} ${cls.className}`,
-    students: cls.studentCount,
-    rate: 85 // 固定值模拟活跃度，实际应根据学生出勤等数据计算
-  })).sort((a, b) => b.students - a.students).slice(0, 5)
+  if (loading) {
+    return (
+      <div style={{ textAlign: 'center', padding: 100 }}>
+        <Spin size="large" tip="加载中..." />
+      </div>
+    )
+  }
 
   return (
     <div>
@@ -39,7 +68,7 @@ const Dashboard = () => {
       {/* 统计卡片 */}
       <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
         {statistics.map((stat, index) => (
-          <Col xs={24} sm={12} md={6} key={index}>
+          <Col xs={24} sm={12} md={8} lg={4} key={index}>
             <Card>
               <Statistic
                 title={stat.title}
@@ -58,76 +87,89 @@ const Dashboard = () => {
         {/* 左侧：近期活动 */}
         <Col xs={24} lg={8}>
           <Card title="近期活动">
-            <Table
-              dataSource={recentActivities}
-              columns={[
-                {
-                  title: '活动内容',
-                  dataIndex: 'title',
-                  key: 'title',
-                  render: (title, item) => (
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span>{title}</span>
-                      <Tag color={item.status}>{item.status}</Tag>
-                    </div>
-                  )
-                },
-                {
-                  title: '时间',
-                  dataIndex: 'time',
-                  key: 'time'
-                }
-              ]}
-              rowKey="id"
-              pagination={false}
-              bordered={false}
-              size="small"
-            />
+            {recentActivities.length > 0 ? (
+              <Table
+                dataSource={recentActivities}
+                columns={[
+                  {
+                    title: '活动内容',
+                    dataIndex: 'title',
+                    key: 'title',
+                    render: (title, item) => (
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span>{title}</span>
+                        <Tag color={item.status}>{item.status}</Tag>
+                      </div>
+                    )
+                  },
+                  {
+                    title: '时间',
+                    dataIndex: 'time',
+                    key: 'time'
+                  }
+                ]}
+                rowKey="id"
+                pagination={false}
+                bordered={false}
+                size="small"
+              />
+            ) : (
+              <Empty description="暂无活动记录" />
+            )}
           </Card>
         </Col>
 
         {/* 右侧：班级排名 */}
         <Col xs={24} lg={16}>
-          <Card title="班级活跃度排名">
-            <Table
-              dataSource={classRanking}
-              columns={[
-                {
-                  title: '班级',
-                  dataIndex: 'name',
-                  key: 'name'
-                },
-                {
-                  title: '学生数',
-                  dataIndex: 'students',
-                  key: 'students'
-                },
-                {
-                  title: '活跃度',
-                  dataIndex: 'rate',
-                  key: 'rate',
-                  render: (rate) => (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <span>{rate}%</span>
-                      <div style={{ width: 100, height: 8, background: '#f0f0f0', borderRadius: 4, overflow: 'hidden' }}>
-                        <div 
-                          style={{
-                            width: `${rate}%`, 
-                            height: '100%', 
-                            background: '#52c41a',
-                            borderRadius: 4
-                          }}
-                        />
+          <Card title="班级体测完成度排名">
+            {classRanking.length > 0 ? (
+              <Table
+                dataSource={classRanking}
+                columns={[
+                  {
+                    title: '班级',
+                    dataIndex: 'name',
+                    key: 'name'
+                  },
+                  {
+                    title: '学生数',
+                    dataIndex: 'students',
+                    key: 'students'
+                  },
+                  {
+                    title: '已测试',
+                    dataIndex: 'testedStudents',
+                    key: 'testedStudents'
+                  },
+                  {
+                    title: '完成率',
+                    dataIndex: 'rate',
+                    key: 'rate',
+                    render: (rate) => (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span>{rate}%</span>
+                        <div style={{ width: 100, height: 8, background: '#f0f0f0', borderRadius: 4, overflow: 'hidden' }}>
+                          <div 
+                            style={{
+                              width: `${rate}%`, 
+                              height: '100%', 
+                              background: rate >= 80 ? '#52c41a' : rate >= 50 ? '#faad14' : '#f5222d',
+                              borderRadius: 4
+                            }}
+                          />
+                        </div>
                       </div>
-                    </div>
-                  )
-                }
-              ]}
-              rowKey="id"
-              pagination={false}
-              bordered={false}
-              size="small"
-            />
+                    )
+                  }
+                ]}
+                rowKey="id"
+                pagination={false}
+                bordered={false}
+                size="small"
+              />
+            ) : (
+              <Empty description="暂无班级数据" />
+            )}
           </Card>
         </Col>
       </Row>

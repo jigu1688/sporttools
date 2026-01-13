@@ -2,10 +2,11 @@ import { useState, useMemo, useEffect, useRef } from 'react'
 import { Table, Button, Modal, Form, Input, Select, message, Space, Typography, DatePicker, Card, Row, Col, Divider, Checkbox, Tree } from 'antd'
 import { EditOutlined, DeleteOutlined, SearchOutlined, ExportOutlined, CheckOutlined, UploadOutlined } from '@ant-design/icons'
 import { useSelector, useDispatch } from 'react-redux'
-import { updateTestRecord, deleteTestRecord, addTestRecord, setTestRecords, fetchPhysicalTestHistory } from '../../store/physicalTestSlice'
+import { updateTestRecord, deleteTestRecord, addTestRecord, setTestRecords, fetchPhysicalTestHistory, createPhysicalTest, updatePhysicalTestRecord, deletePhysicalTestRecord } from '../../store/physicalTestSlice'
+import { fetchAllStudents } from '../../store/dataSlice'
 import { getTestItemsForGrade } from '../../utils/gradeStageMapping'
 import { parseGradeCode, parseClassCode } from '../../utils/codeMapping'
-import { calculateTotalScore } from '../../utils/scoreStandards'
+import { calculateTotalScore } from '../../utils/scoreCalculator'
 import PhysicalTestImportExport from './PhysicalTestImportExport'
 
 import dayjs from 'dayjs'
@@ -40,36 +41,69 @@ const ScoreManagement = () => {
   const { testRecords, loading: reduxLoading } = useSelector(state => state.physicalTest)
   const { students, schoolInfo } = useSelector(state => state.data)
   
-  // 组件加载时获取体测历史数据
+  // 组件加载时获取学生数据和体测历史数据
   useEffect(() => {
+    // 获取全部学生列表（分页加载所有数据）
+    dispatch(fetchAllStudents())
+    // 获取体测历史数据
     dispatch(fetchPhysicalTestHistory({}))
   }, [dispatch])
 
+  // 使用统一字段名同步学生数据到体测记录
+  // 始终以学生列表为基础，合并体测记录数据
   const synchronizedData = useMemo(() => {
-    const studentsMap = new Map()
-    students.forEach(student => {
-      studentsMap.set(student.educationId, student)
-    })
-    
-    return testRecords.map(record => {
-      const student = studentsMap.get(record.educationId)
-      // 获取原始年级和班级数据
-      const rawGrade = student?.grade || record.grade || '未知'
-      const rawClass = student?.className || record.className || '未知'
+    try {
+      // 创建体测记录的索引Map，支持多种关联方式
+      const testRecordsByEducationId = new Map()
+      const testRecordsByStudentNo = new Map()
+      const testRecordsById = new Map()
       
-      // 转换年级编码为中文名称
-      const grade = parseGradeCode(rawGrade)
-      // 转换班级编码为中文名称
-      const className = parseClassCode(rawClass)
+      testRecords.forEach(record => {
+        if (record.education_id) testRecordsByEducationId.set(record.education_id, record)
+        if (record.educationId) testRecordsByEducationId.set(record.educationId, record)
+        if (record.student_no) testRecordsByStudentNo.set(record.student_no, record)
+        if (record.student_id) testRecordsById.set(record.student_id, record)
+      })
       
-      return {
-        ...record,
-        studentName: student?.name || record.studentName || '未知',
-        gender: student?.gender || record.gender || 'male',
-        grade,
-        className
-      }
-    })
+      // 以学生列表为基础，合并体测记录
+      return students.map(student => {
+        // 查找该学生的体测记录
+        let testRecord = null
+        if (student.education_id) testRecord = testRecordsByEducationId.get(student.education_id)
+        if (!testRecord && student.educationId) testRecord = testRecordsByEducationId.get(student.educationId)
+        if (!testRecord && student.student_no) testRecord = testRecordsByStudentNo.get(student.student_no)
+        if (!testRecord && student.id) testRecord = testRecordsById.get(student.id)
+        
+        const rawGrade = student.current_grade || student.grade || '未知'
+        const rawClass = student.current_class_name || student.className || '未知'
+        const grade = parseGradeCode(rawGrade)
+        const className = parseClassCode(rawClass)
+        
+        // 合并学生信息和体测记录
+        return {
+          id: testRecord?.id || student.id,
+          real_name: student.real_name || student.name || '未知',
+          studentName: student.real_name || student.name || '未知',
+          educationId: student.education_id || student.educationId,
+          education_id: student.education_id || student.educationId,
+          student_no: student.student_no,
+          student_id: student.id,
+          gender: student.gender || 'male',
+          grade,
+          className,
+          // 体测记录字段，如果有记录则使用记录值，否则使用默认值
+          testDate: testRecord?.testDate || '',
+          totalScore: testRecord?.totalScore || '',
+          gradeLevel: testRecord?.gradeLevel || '',
+          studentStatus: testRecord?.studentStatus || '正常',
+          testItems: testRecord?.testItems || {},
+          remark: testRecord?.remark || ''
+        }
+      })
+    } catch (err) {
+      console.error('[ScoreManagement] Error in synchronizedData:', err)
+      return []
+    }
   }, [testRecords, students])
 
   // 使用状态存储搜索条件，确保useMemo能正确响应变化
@@ -88,12 +122,14 @@ const ScoreManagement = () => {
       result = result.filter(record => record.className === searchValues.className)
     }
     
-    // 按学生搜索
+    // 按学生搜索 - 支持姓名、学籍号、教育ID
     if (searchValues.studentSearch) {
       const searchText = searchValues.studentSearch.toLowerCase()
       result = result.filter(record => 
         record.studentName?.toLowerCase().includes(searchText) ||
-        record.educationId.includes(searchText)
+        record.real_name?.toLowerCase().includes(searchText) ||
+        record.student_no?.toLowerCase().includes(searchText) ||
+        record.education_id?.includes(searchText)
       )
     }
     
@@ -104,6 +140,13 @@ const ScoreManagement = () => {
     
     return result
   }, [synchronizedData, searchValues])
+
+  // 搜索条件变化时自动更新
+  const handleSearchChange = (changedValues) => {
+    const values = searchForm.getFieldsValue()
+    setSearchValues(values)
+    setCurrentPage(1)
+  }
 
   // 搜索功能
   const handleSearch = () => {
@@ -209,15 +252,25 @@ const ScoreManagement = () => {
     message.success('数据导出成功')
   }
 
-  // 导入数据处理
-  const handleImportComplete = (data) => {
-    if (data && data.length > 0) {
-      // 处理导入的数据
-      const existingRecords = new Set(testRecords.map(record => record.educationId))
-      const newRecords = []
-      const updatedRecords = []
-      
-      data.forEach(item => {
+  // 导入数据处理 - 支持多种导入模式，并持久化到后端
+  const handleImportComplete = async (data, importMode = 'merge') => {
+    if (!data || data.length === 0) return
+
+    setLoading(true)
+    let successCount = 0
+    let failCount = 0
+    
+    // 创建现有记录索引，同时支持 educationId 和 education_id
+    const existingRecordsMap = new Map()
+    testRecords.forEach(record => {
+      const key = record.education_id || record.educationId || record.student_id
+      if (key) {
+        existingRecordsMap.set(String(key), record)
+      }
+    })
+    
+    for (const item of data) {
+      try {
         // 计算总分和等级
         let totalScore = item.totalScore || 0
         let gradeLevel = item.gradeLevel || ''
@@ -228,75 +281,123 @@ const ScoreManagement = () => {
           gradeLevel = result.gradeLevel
         }
         
-        const processedItem = {
-          ...item,
-          totalScore,
-          gradeLevel
+        // 转换为后端API需要的格式
+        const apiData = {
+          student_id: item.student_id,
+          class_id: item.class_id || null,
+          test_date: item.testDate || new Date().toISOString().split('T')[0],
+          test_type: '日常',
+          height: item.testItems?.height || null,
+          weight: item.testItems?.weight || null,
+          vital_capacity: item.testItems?.vitalCapacity ? Math.round(item.testItems.vitalCapacity) : null,
+          run_50m: item.testItems?.run50m || null,  // 保留小数
+          run_800m: item.testItems?.run800m || null,  // 保留小数（秒）
+          run_1000m: item.testItems?.run1000m || null,  // 保留小数（秒）
+          sit_and_reach: item.testItems?.sitAndReach || null,
+          standing_long_jump: item.testItems?.standingLongJump ? Math.round(item.testItems.standingLongJump) : null,
+          pull_up: item.testItems?.pullUps ? Math.round(item.testItems.pullUps) : null,
+          skip_rope: item.testItems?.ropeSkipping ? Math.round(item.testItems.ropeSkipping) : null,
+          sit_ups: item.testItems?.sitUps ? Math.round(item.testItems.sitUps) : null,
+          run_50m_8: item.testItems?.run50m8x || null,  // 保留小数
+          total_score: totalScore || null,
+          grade: gradeLevel || null,
+          is_official: true
         }
         
-        if (existingRecords.has(item.educationId)) {
-          // 更新现有记录
-          updatedRecords.push(processedItem)
+        // 检查该学生是否已有记录
+        const itemKey = String(item.education_id || item.educationId || item.student_id)
+        const existingRecord = existingRecordsMap.get(itemKey)
+        
+        if (existingRecord && existingRecord.id && typeof existingRecord.id === 'number') {
+          // 根据导入模式决定如何更新
+          if (importMode === 'fillEmpty') {
+            // 仅填充空值模式：只更新原本为空的字段
+            const updateData = {}
+            Object.entries(apiData).forEach(([key, value]) => {
+              if (value !== null && (existingRecord[key] === null || existingRecord[key] === undefined)) {
+                updateData[key] = value
+              }
+            })
+            if (Object.keys(updateData).length > 0) {
+              await dispatch(updatePhysicalTestRecord({ id: existingRecord.id, testData: updateData })).unwrap()
+            }
+          } else {
+            // 智能合并或全量覆盖模式
+            await dispatch(updatePhysicalTestRecord({ id: existingRecord.id, testData: apiData })).unwrap()
+          }
         } else {
-          // 添加新记录
-          newRecords.push({
-            id: Date.now() + Math.random(), // 生成唯一ID
-            ...processedItem,
-            isApproved: false,
-            approvedBy: '',
-            approvedTime: ''
-          })
+          // 创建新记录
+          if (item.student_id) {
+            await dispatch(createPhysicalTest(apiData)).unwrap()
+          } else {
+            console.warn('跳过没有student_id的记录:', item)
+            failCount++
+            continue
+          }
         }
-      })
-      
-      // 更新现有记录
-      updatedRecords.forEach(item => {
-        const existingRecord = testRecords.find(record => record.educationId === item.educationId)
-        if (existingRecord) {
-          dispatch(updateTestRecord({
-            ...existingRecord,
-            ...item,
-            // 合并testItems字段，确保新导入的测试项目数据正确保存
-            testItems: {
-              ...existingRecord.testItems,
-              ...item.testItems
-            },
-            id: existingRecord.id
-          }))
-        }
-      })
-      
-      // 添加新记录
-      newRecords.forEach(item => {
-        dispatch(addTestRecord(item))
-      })
-      
-      message.success(`成功导入 ${newRecords.length} 条新数据，更新 ${updatedRecords.length} 条现有数据`)
+        successCount++
+      } catch (error) {
+        console.error('保存记录失败:', error, item)
+        failCount++
+      }
+    }
+    
+    setLoading(false)
+    
+    // 刷新数据
+    dispatch(fetchPhysicalTestHistory({}))
+    
+    const modeText = {
+      merge: '智能合并',
+      overwrite: '全量覆盖',
+      fillEmpty: '仅填充空值'
+    }[importMode] || '智能合并'
+    
+    if (failCount > 0) {
+      message.warning(`[${modeText}] 成功保存 ${successCount} 条，失败 ${failCount} 条`)
+    } else {
+      message.success(`[${modeText}] 成功保存 ${successCount} 条数据到服务器`)
     }
   }
 
   // 移除批量审核功能，因为改为考生状态管理
 
+  // 使用 useMemo 缓存年级列表数据
+  const gradeList = useMemo(() => {
+    try {
+      // 使用 current_grade 字段（API原始字段）或 grade 字段（normalizeStudent 标准化后的字段）
+      const grades = [...new Set(students.map(student => student.current_grade || student.grade).filter(g => g && g !== '未知'))]
+      return grades
+    } catch (err) {
+      return []
+    }
+  }, [students])
+
+  // 使用 useMemo 缓存班级列表数据
+  const classList = useMemo(() => {
+    try {
+      let result = [...students]
+      if (searchValues?.grade) {
+        // 使用 current_grade 字段进行筛选
+        result = result.filter(student => (student.current_grade || student.grade) === searchValues.grade)
+      }
+      // 使用 current_class_name 字段（API原始字段）或 className 字段（normalizeStudent 标准化后的字段）
+      const classNames = [...new Set(result.map(student => student.current_class_name || student.className).filter(c => c && c !== '未知'))]
+      return classNames
+    } catch (err) {
+      return []
+    }
+  }, [students, searchValues])
+
   // 获取所有年级选项
-  const getGradeOptions = () => {
-    const grades = [...new Set(students.map(student => student.grade))]
-    return grades.map(grade => (
-      <Option key={grade} value={grade}>{grade}</Option>
-    ))
-  }
+  // const getGradeOptions = () => {
+  //   return gradeOptions
+  // }
 
   // 获取班级选项，支持根据年级过滤
-  const getClassOptions = () => {
-    const values = searchForm.getFieldsValue(true)
-    let result = [...students]
-    if (values?.grade) {
-      result = result.filter(student => student.grade === values.grade)
-    }
-    const classNames = [...new Set(result.map(student => student.className))]
-    return classNames.map(className => (
-      <Option key={className} value={className}>{className}</Option>
-    ))
-  }
+  // const getClassOptions = () => {
+  //   return classOptions
+  // }
 
   const showModal = (record = null) => {
     if (record) {
@@ -323,85 +424,99 @@ const ScoreManagement = () => {
     setEditingId(null)
   }
 
-  const handleOk = () => {
-    form.validateFields()
-      .then(values => {
-        setLoading(true)
-        setTimeout(() => {
-          const { 
-            testDate, educationId, studentName, gender, grade, className, 
-            isExempt, exemptReason, remark, ...itemScores 
-          } = values
-          
-          const testDateStr = testDate ? testDate.format('YYYY-MM-DD') : ''
-          
-          // 处理考生状态
-          const studentStatus = isExempt && exemptReason ? exemptReason : '正常'
-          
-          // 如果是免测,清空测试项目数据
-          const testItems = isExempt ? {} : { ...itemScores }
-          
-          // 计算总分和等级
-          let totalScore = 0
-          let gradeLevel = ''
-          
-          if (!isExempt && Object.keys(testItems).length > 0) {
-            const result = calculateTotalScore(testItems, grade, gender)
-            totalScore = result.totalScore
-            gradeLevel = result.gradeLevel
-          }
-          
-          const updatedRecord = {
-            educationId,
-            studentName,
-            gender,
-            grade,
-            className,
-            testDate: testDateStr,
-            testItems,
-            totalScore,
-            gradeLevel,
-            studentStatus,
-            remark: remark || ''
-          }
-          
-          if (editingId) {
-            const isTempRecord = String(editingId).startsWith('temp_')
-            
-            if (isTempRecord) {
-              const newId = Date.now()
-              dispatch(addTestRecord({ ...updatedRecord, id: newId }))
-              message.success('体测记录添加成功')
-            } else {
-              const originalRecord = testRecords.find(record => record.id === editingId)
-              if (originalRecord) {
-                dispatch(updateTestRecord({ ...updatedRecord, id: editingId }))
-                message.success('体测记录更新成功')
-              }
-            }
-          } else {
-            // 新增记录，根据educationId查找是否已存在
-            const existingRecord = testRecords.find(record => record.educationId === educationId)
-            if (existingRecord) {
-              // 已存在，更新记录
-              dispatch(updateTestRecord({ ...updatedRecord, id: existingRecord.id }))
-              message.success('体测记录更新成功')
-            } else {
-              // 不存在，添加新记录
-              const newId = Date.now()
-              dispatch(addTestRecord({ ...updatedRecord, id: newId }))
-              message.success('体测记录添加成功')
-            }
-          }
-          setIsModalVisible(false)
-          setLoading(false)
-          setEditingId(null)
-        }, 500)
-      })
-      .catch(info => {
-        // console.log('表单验证失败:', info)
+  const handleOk = async () => {
+    try {
+      const values = await form.validateFields()
+      setLoading(true)
+      
+      const { 
+        testDate, educationId, studentName, gender, grade, className, 
+        isExempt, exemptReason, remark, ...itemScores 
+      } = values
+      
+      const testDateStr = testDate ? testDate.format('YYYY-MM-DD') : new Date().toISOString().split('T')[0]
+      
+      // 处理考生状态
+      const studentStatus = isExempt && exemptReason ? exemptReason : '正常'
+      
+      // 如果是免测,清空测试项目数据
+      const testItems = isExempt ? {} : { ...itemScores }
+      
+      // 计算总分和等级
+      let totalScore = 0
+      let gradeLevel = ''
+      
+      if (!isExempt && Object.keys(testItems).length > 0) {
+        const result = calculateTotalScore(testItems, grade, gender)
+        totalScore = result.totalScore
+        gradeLevel = result.gradeLevel
+      }
+      
+      // 查找学生信息获取 student_id 和 class_id
+      const student = students.find(s => 
+        String(s.education_id || s.educationId) === String(educationId)
+      )
+      
+      if (!student || !student.id) {
+        message.error('未找到对应学生信息，无法保存')
         setLoading(false)
-      })
+        return
+      }
+      
+      // 转换为后端API格式
+      const apiData = {
+        student_id: student.id,
+        class_id: student.current_class_id || student.class_id || null,
+        test_date: testDateStr,
+        test_type: '日常',
+        height: testItems.height || null,
+        weight: testItems.weight || null,
+        vital_capacity: testItems.vitalCapacity ? Math.round(testItems.vitalCapacity) : null,
+        run_50m: testItems.run50m || null,  // 保留小数
+        run_800m: testItems.run800m || null,  // 保留小数（秒）
+        run_1000m: testItems.run1000m || null,  // 保留小数（秒）
+        sit_and_reach: testItems.sitAndReach || null,
+        standing_long_jump: testItems.standingLongJump ? Math.round(testItems.standingLongJump) : null,
+        pull_up: testItems.pullUps ? Math.round(testItems.pullUps) : null,
+        skip_rope: testItems.ropeSkipping ? Math.round(testItems.ropeSkipping) : null,
+        sit_ups: testItems.sitUps ? Math.round(testItems.sitUps) : null,
+        run_50m_8: testItems.run50m8x || null,  // 保留小数
+        total_score: totalScore || null,
+        grade: gradeLevel || null,
+        test_notes: studentStatus !== '正常' ? studentStatus : (remark || null),
+        is_official: true
+      }
+      
+      // 查找是否已有体测记录
+      const existingRecord = testRecords.find(record => 
+        (record.educationId === educationId || record.education_id === educationId) &&
+        record.id && typeof record.id === 'number'
+      )
+      
+      try {
+        if (existingRecord) {
+          // 更新现有记录
+          await dispatch(updatePhysicalTestRecord({ id: existingRecord.id, testData: apiData })).unwrap()
+          message.success('体测记录更新成功')
+        } else {
+          // 创建新记录
+          await dispatch(createPhysicalTest(apiData)).unwrap()
+          message.success('体测记录添加成功')
+        }
+        
+        // 刷新数据
+        dispatch(fetchPhysicalTestHistory({}))
+        
+        setIsModalVisible(false)
+        setEditingId(null)
+      } catch (apiError) {
+        message.error('保存失败: ' + (apiError.message || apiError))
+      }
+      
+      setLoading(false)
+    } catch (info) {
+      setLoading(false)
+    }
   }
 
   const handleDelete = (id) => {
@@ -412,12 +527,29 @@ const ScoreManagement = () => {
       return
     }
     
+    // 检查是否是后端数据库记录（数字ID）
+    const isDbRecord = typeof id === 'number'
+    
     Modal.confirm({
       title: '确认删除',
-      content: '您确定要删除这条体测记录吗？',
-      onOk: () => {
-        dispatch(deleteTestRecord(id))
-        message.success('体测记录删除成功')
+      content: '您确定要删除这条体测记录吗？此操作不可恢复！',
+      onOk: async () => {
+        try {
+          if (isDbRecord) {
+            // 调用后端 API 删除
+            await dispatch(deletePhysicalTestRecord(id)).unwrap()
+            message.success('体测记录删除成功')
+            // 刷新数据
+            dispatch(fetchPhysicalTestHistory({}))
+          } else {
+            // 本地临时记录，直接从 Redux 删除
+            dispatch(deleteTestRecord(id))
+            message.success('记录已移除')
+          }
+        } catch (error) {
+          console.error('[handleDelete] Error:', error)
+          message.error('删除失败: ' + (error.message || error))
+        }
       }
     })
   }
@@ -605,554 +737,431 @@ const ScoreManagement = () => {
     }
   }
 
-  return (
-    <div>
-      <Title level={3}>体测成绩管理</Title>
-      
-      <Card style={{ marginBottom: 20 }}>
-        <Form
-          form={searchForm}
-          layout="horizontal"
-          initialValues={{
-            grade: '',
-            className: '',
-            studentSearch: '',
-            studentStatus: ''
-          }}
-        >
-          <Row gutter={[8, 8]} align="middle" justify="space-between">
-            <Row gutter={[8, 8]} align="middle">
+  try {
+    return (
+      <Card title="体测成绩管理" style={{ marginTop: 16 }} loading={loading}>
+        {/* 搜索栏 */}
+        <div style={{ marginBottom: 16, padding: '16px', backgroundColor: '#fafafa', borderRadius: 8 }}>
+          <Form form={searchForm} onValuesChange={handleSearchChange}>
+            <Row gutter={16} align="middle">
               <Col>
                 <Form.Item name="grade" label="年级" style={{ marginBottom: 0 }}>
                   <Select 
-                    placeholder="年级" 
+                    placeholder="选择年级" 
                     style={{ width: 120 }}
+                    allowClear
                     onChange={() => {
-                      // 年级变化时，清空班级选择
-                      searchForm.setFieldsValue({ className: '' })
+                      searchForm.setFieldsValue({ className: undefined })
                     }}
                   >
-                    <Option value="">全部</Option>
-                    {getGradeOptions()}
+                    {gradeList.map(grade => (
+                      <Option key={grade} value={grade}>{grade}</Option>
+                    ))}
                   </Select>
                 </Form.Item>
               </Col>
               <Col>
                 <Form.Item name="className" label="班级" style={{ marginBottom: 0 }}>
-                  <Select placeholder="班级" style={{ width: 150 }}>
-                    <Option value="">全部</Option>
-                    {getClassOptions()}
+                  <Select 
+                    placeholder="选择班级" 
+                    style={{ width: 120 }}
+                    allowClear
+                  >
+                    {classList.map(className => (
+                      <Option key={className} value={className}>{className}</Option>
+                    ))}
                   </Select>
                 </Form.Item>
               </Col>
               <Col>
-                <Form.Item name="studentSearch" label="学生" style={{ marginBottom: 0 }}>
-                  <Input placeholder="ID或姓名" allowClear style={{ width: 200 }} />
+                <Form.Item name="studentSearch" label="搜索" style={{ marginBottom: 0 }}>
+                  <Input placeholder="姓名/学籍号/教育ID" style={{ width: 160 }} allowClear />
                 </Form.Item>
               </Col>
               <Col>
-                <Form.Item name="studentStatus" label="考生状态" style={{ marginBottom: 0 }}>
-                  <Select placeholder="考生状态" style={{ width: 150 }}>
-                    <Option value="">全部</Option>
-                    <Option value="正常">正常</Option>
-                    <Option value="因病免体">因病免体</Option>
-                    <Option value="因伤免体">因伤免体</Option>
-                    <Option value="重疾免测">重疾免测</Option>
-                    <Option value="残疾免测">残疾免测</Option>
-                    <Option value="其他免测">其他免测</Option>
-                  </Select>
-                </Form.Item>
+                <Space>
+                  <Button type="primary" icon={<SearchOutlined />} onClick={handleSearch}>搜索</Button>
+                  <Button onClick={handleReset}>重置</Button>
+                </Space>
               </Col>
+              <Col flex="auto" />
               <Col>
-                <Button type="primary" icon={<SearchOutlined />} onClick={handleSearch} style={{ marginRight: 8 }}>
-                  搜索
-                </Button>
-              </Col>
-              <Col>
-                <Button onClick={handleReset} style={{ marginRight: 8 }}>
-                  重置
-                </Button>
-              </Col>
-              <Col>
-                <Button danger onClick={handleClearScores} style={{ marginRight: 8 }}>
-                  清空成绩
-                </Button>
-              </Col>
-
-            </Row>
-            <Row gutter={[8, 8]} align="middle">
-              <Col>
-                <PhysicalTestImportExport 
-                  onImportComplete={handleImportComplete}
-                />
-              </Col>
-              <Col>
-                <Button type="primary" icon={<ExportOutlined />} onClick={handleExport}>
-                  导出成绩
-                </Button>
+                <Space>
+                  <PhysicalTestImportExport onImportComplete={handleImportComplete} />
+                  <Button type="primary" icon={<ExportOutlined />} onClick={handleExport}>导出</Button>
+                  <Button danger onClick={handleClearScores}>清空成绩</Button>
+                </Space>
               </Col>
             </Row>
-          </Row>
-        </Form>
-      </Card>
+          </Form>
+        </div>
 
-      {/* 分屏布局 */}
-      <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 200px)', border: '1px solid #f0f0f0', borderRadius: 4, overflow: 'hidden' }}>
-        {/* 上半部分：成绩列表 */}
-        <div style={{ flex: `0 0 ${splitHeight}px`, overflow: 'auto' }}>
-          {filteredData.length > 0 ? (
-            (() => {
-              const { columns, scrollX } = getColumnsWithTestItems()
-              
-              // 分页计算
-              const startIndex = (currentPage - 1) * pageSize
-              const endIndex = startIndex + pageSize
-              const paginatedData = filteredData.slice(startIndex, endIndex)
-              
-              return (
-                <Table
-                  columns={columns}
-                  dataSource={paginatedData}
-                  rowKey="id"
-                  loading={loading}
-                  pagination={{
-                    current: currentPage,
-                    pageSize: pageSize,
-                    total: filteredData.length,
-                    onChange: (page, size) => {
-                      setCurrentPage(page)
-                      setPageSize(size)
-                    },
-                    showSizeChanger: true,
-                    pageSizeOptions: ['10', '20', '50', '100'],
-                    showTotal: (total) => `共 ${total} 条记录`
-                  }}
-                  scroll={{ x: scrollX }}
-                  rowSelection={{
-                    selectedRowKeys,
-                    onChange: (selectedRowKeys, selectedRows) => {
-                      setSelectedRowKeys(selectedRowKeys)
-                      setSelectedRows(selectedRows)
-                    },
-                    getCheckboxProps: (record) => ({
-                      disabled: record.isApproved || String(record.id).startsWith('temp_'),
-                      name: record.studentName,
-                    }),
-                  }}
-                  onRow={(record) => ({
-                    onClick: () => handleRowSelect(null, record),
-                    style: {
-                      backgroundColor: selectedRecord?.id === record.id ? '#f0f7ff' : 'transparent',
-                      cursor: 'pointer'
-                    }
-                  })}
-                />
-              )
-            })()
-          ) : (
+        {/* 分屏布局 */}
+        <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 320px)', border: '1px solid #e8e8e8', borderRadius: 8, overflow: 'hidden', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
+          {/* 上半部分：学生列表 */}
+          <div style={{ flex: 1, minHeight: 200, overflow: 'auto' }}>
             <Table
               columns={baseColumns}
-              dataSource={[]}
+              dataSource={filteredData}
               rowKey="id"
-              loading={loading}
+              loading={loading || reduxLoading}
+              size="small"
               pagination={{
-                current: 1,
+                current: currentPage,
                 pageSize: pageSize,
-                total: 0,
+                total: filteredData.length,
                 onChange: (page, size) => {
                   setCurrentPage(page)
-                  setPageSize(size)
+                  if (size !== pageSize) setPageSize(size)
                 },
                 showSizeChanger: true,
                 pageSizeOptions: ['10', '20', '50', '100'],
-                showTotal: (total) => `共 ${total} 条记录`
+                showTotal: (total, range) => `第 ${range[0]}-${range[1]} 条，共 ${total} 条`,
+                size: 'small'
               }}
-              scroll={{ x: 800 }}
+              scroll={{ x: 1200, y: 'calc(100vh - 520px)' }}
               rowSelection={{
-                selectedRowKeys: [],
-                onChange: () => {},
-                getCheckboxProps: () => ({
-                  disabled: true
-                })
+                selectedRowKeys,
+                onChange: (keys, rows) => {
+                  setSelectedRowKeys(keys)
+                  setSelectedRows(rows)
+                },
+                getCheckboxProps: (record) => ({
+                  disabled: record.isApproved || String(record.id).startsWith('temp_'),
+                  name: record.studentName,
+                }),
               }}
+              onRow={(record) => ({
+                onClick: () => handleRowSelect(null, record),
+                onDoubleClick: () => showModal(record),
+                style: {
+                  backgroundColor: selectedRecord?.id === record.id ? '#e6f7ff' : 'transparent',
+                  cursor: 'pointer'
+                }
+              })}
             />
-          )}
-        </div>
-        
-        {/* 分割线，支持拖动调整高度 */}
-        <div 
-          ref={splitRef}
-          style={{
-            height: '8px',
-            backgroundColor: '#f0f0f0',
-            cursor: 'ns-resize',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            borderTop: '1px solid #e0e0e0',
-            borderBottom: '1px solid #e0e0e0',
-            userSelect: 'none',
-            ...(isResizing && { backgroundColor: '#1890ff', cursor: 'ns-resize' })
-          }}
-          onMouseDown={handleMouseDown}
-        >
-          <div style={{
-            width: '40px',
-            height: '2px',
-            backgroundColor: '#999',
-            borderRadius: '1px',
-            ...(isResizing && { backgroundColor: '#fff' })
-          }} />
-        </div>
-        
-        {/* 下半部分：成绩详情 */}
-        <div 
-          style={{
-            flex: 1,
-            overflow: 'auto',
-            backgroundColor: '#fafafa',
-            padding: 16
-          }}
-          onDoubleClick={handleDoubleClick}
-        >
-          {selectedRecord ? (
-            <Card title="成绩详情" bordered={true}>
-              <Row gutter={16} style={{ marginBottom: 16 }}>
-                <Col span={6}>
-                  <div style={{ fontWeight: 'bold' }}>教育ID:</div>
-                  <div>{selectedRecord.educationId}</div>
-                </Col>
-                <Col span={6}>
-                  <div style={{ fontWeight: 'bold' }}>学生姓名:</div>
-                  <div>{selectedRecord.studentName}</div>
-                </Col>
-                <Col span={6}>
-                  <div style={{ fontWeight: 'bold' }}>性别:</div>
-                  <div>{selectedRecord.gender === 'male' ? '男' : '女'}</div>
-                </Col>
-                <Col span={6}>
-                  <div style={{ fontWeight: 'bold' }}>年级:</div>
-                  <div>{selectedRecord.grade}</div>
-                </Col>
-              </Row>
-              
-              <Row gutter={16} style={{ marginBottom: 16 }}>
-                <Col span={6}>
-                  <div style={{ fontWeight: 'bold' }}>班级:</div>
-                  <div>{selectedRecord.className}</div>
-                </Col>
-                <Col span={6}>
-                  <div style={{ fontWeight: 'bold' }}>测试日期:</div>
-                  <div>{selectedRecord.testDate}</div>
-                </Col>
-                <Col span={6}>
-                  <div style={{ fontWeight: 'bold' }}>总分:</div>
-                  <div style={{ fontSize: 18, color: '#1890ff', fontWeight: 'bold' }}>{selectedRecord.totalScore}</div>
-                </Col>
-                <Col span={6}>
-                  <div style={{ fontWeight: 'bold' }}>等级:</div>
-                  <div>{selectedRecord.gradeLevel}</div>
-                </Col>
-              </Row>
-              
-              <Divider orientation="left">测试项目成绩</Divider>
-              
-              <Row gutter={16}>
-                {(() => {
-                  const grade = selectedRecord.grade
-                  const gender = selectedRecord.gender
-                  const items = getVisibleTestItems(grade, gender)
-                  return items.map(item => (
-                    <Col span={12} key={item.code}>
-                      <Row gutter={8} align="middle">
-                        <Col span={12}>
-                          <div>{item.name}:</div>
-                        </Col>
-                        <Col span={12}>
-                          <div style={{ textAlign: 'right', fontWeight: 'bold' }}>
-                            {selectedRecord.testItems[item.code] || '-'}
+          </div>
+          
+          {/* 分割线 - 移除可拖动功能，使用固定高度 */}
+          
+          {/* 下半部分：成绩详情 */}
+          <div 
+            style={{
+              height: 380,
+              overflow: 'auto',
+              backgroundColor: '#fff',
+              padding: 16,
+              borderTop: '1px solid #e8e8e8'
+            }}
+            onDoubleClick={handleDoubleClick}
+          >
+            {selectedRecord ? (
+              (() => {
+                // 计算详细评分
+                const scoreResult = calculateTotalScore(
+                  selectedRecord.testItems,
+                  selectedRecord.grade,
+                  selectedRecord.gender
+                )
+                const { itemScores, bonusItems, standardScore, bonusScore, compositeScore, bmi } = scoreResult
+                
+                // 获取等级对应的颜色
+                const getLevelColor = (level) => {
+                  if (level === '优秀') return '#52c41a'
+                  if (level === '良好') return '#1890ff'
+                  if (level === '及格') return '#faad14'
+                  return '#ff4d4f'
+                }
+                
+                // 获取BMI等级描述
+                const getBMIDescription = (level) => {
+                  if (level === '正常') return { text: '正常', color: '#52c41a' }
+                  if (level === '低体重') return { text: '偏瘦', color: '#faad14' }
+                  if (level === '超重') return { text: '超重', color: '#faad14' }
+                  if (level === '肥胖') return { text: '肥胖', color: '#ff4d4f' }
+                  return { text: '-', color: '#999' }
+                }
+                
+                // 根据单项得分获取等级
+                const getItemLevel = (score) => {
+                  if (score >= 90) return '优秀'
+                  if (score >= 80) return '良好'
+                  if (score >= 60) return '及格'
+                  if (score > 0) return '不及格'
+                  return '-'
+                }
+                
+                return (
+                  <div>
+                    {/* 基本信息行 */}
+                    <Row gutter={16} style={{ marginBottom: 12 }}>
+                      <Col span={3}>
+                        <div style={{ color: '#666', fontSize: 12 }}>教育ID</div>
+                        <div style={{ fontWeight: 500, fontSize: 13 }}>{selectedRecord.educationId || '-'}</div>
+                      </Col>
+                      <Col span={2}>
+                        <div style={{ color: '#666', fontSize: 12 }}>姓名</div>
+                        <div style={{ fontWeight: 500 }}>{selectedRecord.studentName}</div>
+                      </Col>
+                      <Col span={2}>
+                        <div style={{ color: '#666', fontSize: 12 }}>性别</div>
+                        <div style={{ fontWeight: 500 }}>{selectedRecord.gender === 'male' ? '男' : '女'}</div>
+                      </Col>
+                      <Col span={2}>
+                        <div style={{ color: '#666', fontSize: 12 }}>年级</div>
+                        <div style={{ fontWeight: 500 }}>{selectedRecord.grade}</div>
+                      </Col>
+                      <Col span={2}>
+                        <div style={{ color: '#666', fontSize: 12 }}>班级</div>
+                        <div style={{ fontWeight: 500 }}>{selectedRecord.className}</div>
+                      </Col>
+                      <Col span={3}>
+                        <div style={{ color: '#666', fontSize: 12 }}>测试日期</div>
+                        <div style={{ fontWeight: 500 }}>{selectedRecord.testDate || '-'}</div>
+                      </Col>
+                      <Col span={3}>
+                        <div style={{ color: '#666', fontSize: 12 }}>BMI</div>
+                        <div style={{ fontWeight: 500 }}>
+                          {bmi ? (
+                            <>
+                              <span>{bmi.toFixed(1)}</span>
+                              <span style={{ marginLeft: 4, fontSize: 12, color: getBMIDescription(itemScores?.bmi?.level).color }}>
+                                ({getBMIDescription(itemScores?.bmi?.level).text})
+                              </span>
+                            </>
+                          ) : '-'}
+                        </div>
+                      </Col>
+                      <Col span={5}>
+                        <Button type="primary" size="small" icon={<EditOutlined />} onClick={() => showModal(selectedRecord)}>编辑</Button>
+                      </Col>
+                    </Row>
+                    
+                    {/* 分数汇总行 */}
+                    <Row gutter={16} style={{ marginBottom: 12, padding: '8px 12px', backgroundColor: '#f0f7ff', borderRadius: 6 }}>
+                      <Col span={4}>
+                        <div style={{ color: '#666', fontSize: 12 }}>标准分（总分）</div>
+                        <div style={{ fontWeight: 600, color: '#1890ff', fontSize: 20 }}>{standardScore || '-'}</div>
+                      </Col>
+                      <Col span={4}>
+                        <div style={{ color: '#666', fontSize: 12 }}>加分</div>
+                        <div style={{ fontWeight: 600, color: bonusScore > 0 ? '#52c41a' : '#999', fontSize: 20 }}>
+                          {bonusScore > 0 ? `+${bonusScore}` : '0'}
+                        </div>
+                      </Col>
+                      <Col span={4}>
+                        <div style={{ color: '#666', fontSize: 12 }}>综合分</div>
+                        <div style={{ fontWeight: 600, color: '#722ed1', fontSize: 20 }}>{compositeScore || '-'}</div>
+                      </Col>
+                      <Col span={4}>
+                        <div style={{ color: '#666', fontSize: 12 }}>等级</div>
+                        <div style={{ fontWeight: 600, color: getLevelColor(scoreResult.gradeLevel), fontSize: 18 }}>
+                          {scoreResult.gradeLevel || '-'}
+                        </div>
+                      </Col>
+                      <Col span={8}>
+                        {bonusScore > 0 && (
+                          <div>
+                            <div style={{ color: '#666', fontSize: 12 }}>加分项目</div>
+                            <div style={{ fontSize: 12 }}>
+                              {Object.values(bonusItems).map((item, idx) => (
+                                <span key={idx} style={{ marginRight: 8, color: '#52c41a' }}>
+                                  {item.name}: +{item.bonus}
+                                </span>
+                              ))}
+                            </div>
                           </div>
-                        </Col>
-                      </Row>
-                    </Col>
-                  ))
-                })()}
-              </Row>
-              
-              <div style={{ marginTop: 24, textAlign: 'center', color: '#999', fontSize: 14 }}>
-                双击此处可进入编辑模式
+                        )}
+                      </Col>
+                    </Row>
+                    
+                    <Divider style={{ margin: '8px 0' }} />
+                    
+                    {/* 测试项目详情 - 显示得分和等级 */}
+                    <div style={{ color: '#666', fontSize: 12, marginBottom: 8 }}>测试项目成绩详情</div>
+                    <Row gutter={[12, 8]}>
+                      {(() => {
+                        const grade = selectedRecord.grade
+                        const gender = selectedRecord.gender
+                        const items = getVisibleTestItems(grade, gender)
+                        return items.map(item => {
+                          const itemScore = itemScores[item.code]
+                          const value = selectedRecord.testItems?.[item.code]
+                          const score = itemScore?.score || 0
+                          const level = getItemLevel(score)
+                          const levelColor = getLevelColor(level)
+                          
+                          // 检查是否有加分
+                          const bonusItem = bonusItems[item.code]
+                          
+                          return (
+                            <Col span={6} key={item.code}>
+                              <div style={{ 
+                                padding: '6px 10px', 
+                                backgroundColor: '#fafafa', 
+                                borderRadius: 4,
+                                border: bonusItem ? '1px solid #b7eb8f' : '1px solid #f0f0f0'
+                              }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                  <span style={{ color: '#666', fontSize: 12 }}>{item.name}</span>
+                                  <span style={{ fontSize: 12, color: levelColor, fontWeight: 500 }}>{level}</span>
+                                </div>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 2 }}>
+                                  <span style={{ fontWeight: 500, fontSize: 14 }}>{value ?? '-'}</span>
+                                  <span style={{ color: '#1890ff', fontWeight: 600 }}>
+                                    {score > 0 ? `${score}分` : '-'}
+                                    {bonusItem && <span style={{ color: '#52c41a', marginLeft: 4 }}>+{bonusItem.bonus}</span>}
+                                  </span>
+                                </div>
+                              </div>
+                            </Col>
+                          )
+                        })
+                      })()}
+                    </Row>
+                    
+                    <div style={{ marginTop: 8, textAlign: 'center', color: '#999', fontSize: 11 }}>
+                      提示：双击此区域或表格行可快速编辑成绩 | 加分项目：跳绳(小学最高+20)、引体向上/仰卧起坐/耐力跑(中学最高+10)
+                    </div>
+                  </div>
+                )
+              })()
+            ) : (
+              <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%', color: '#999' }}>
+                <span>👆 点击上方表格选择学生查看详情</span>
               </div>
-            </Card>
-          ) : (
-            <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%', color: '#999' }}>
-              请选择一条记录查看详情
-            </div>
-          )}
+            )}
+          </div>
         </div>
-      </div>
 
-      <Modal
-        title="编辑体测成绩"
-        open={isModalVisible}
-        onOk={handleOk}
-        onCancel={handleCancel}
-        confirmLoading={loading}
-        width={900}
-      >
-        <Form
-          form={form}
-          layout="vertical"
-
+        {/* 编辑成绩弹窗 */}
+        <Modal
+          title={editingId ? '编辑体测成绩' : '添加体测成绩'}
+          open={isModalVisible}
+          onOk={handleOk}
+          onCancel={handleCancel}
+          confirmLoading={loading}
+          width={800}
+          destroyOnClose
         >
-          <Row gutter={16}>
-            <Col span={8}>
-              <Form.Item
-                name="educationId"
-                label="教育ID"
-              >
-                <Input disabled placeholder="教育ID" />
-              </Form.Item>
-            </Col>
-            <Col span={8}>
-              <Form.Item
-                name="studentName"
-                label="学生姓名"
-              >
-                <Input disabled placeholder="学生姓名" />
-              </Form.Item>
-            </Col>
-            <Col span={8}>
-              <Form.Item
-                name="gender"
-                label="性别"
-              >
-                <Input disabled placeholder="性别" />
-              </Form.Item>
-            </Col>
-          </Row>
-
-          <Row gutter={16}>
-            <Col span={8}>
-              <Form.Item
-                name="grade"
-                label="年级"
-              >
-                <Input disabled placeholder="年级" />
-              </Form.Item>
-            </Col>
-            <Col span={8}>
-              <Form.Item
-                name="className"
-                label="班级"
-              >
-                <Input disabled placeholder="班级" />
-              </Form.Item>
-            </Col>
-            <Col span={8}>
-              <Form.Item
-                name="testDate"
-                label="测试日期"
-                rules={[
-                  ({ getFieldValue }) => ({
-                    validator(_, value) {
-                      if (!getFieldValue('isExempt') && !value) {
-                        return Promise.reject(new Error('请选择测试日期!'));
-                      }
-                      return Promise.resolve();
-                    },
-                  })
-                ]}
-              >
-                <DatePicker placeholder="请选择测试日期" style={{ width: '100%' }} />
-              </Form.Item>
-            </Col>
-          </Row>
-
-          <Divider titlePlacement="left">特殊情况</Divider>
-
-          {/* 使用变量存储免测状态 */}
-          <Form.Item noStyle shouldUpdate>
-            {() => {
-              const isExempt = form.getFieldValue('isExempt') || false;
-              return (
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
-                  {/* 圆形选择框 */}
-                  <Form.Item
-                    name="isExempt"
-                    valuePropName="checked"
-                    style={{ marginBottom: 0 }}
-                  >
-                    <Checkbox 
-                      style={{ borderRadius: '50%', marginRight: '8px' }}
-                      onChange={(e) => {
-                        const checked = e.target.checked;
-                        // 当勾选状态变化时,清空免测原因和备注
-                        if (!checked) {
-                          form.setFieldsValue({ exemptReason: undefined, remark: '' });
-                        }
-                        // 触发免测原因的验证
-                        form.validateFields(['exemptReason']).catch(() => {});
-                        
-                        // 触发所有测试项目字段的验证,清除错误提示
-                        const grade = form.getFieldValue('grade');
-                        const gender = form.getFieldValue('gender');
-                        if (grade && gender) {
-                          const items = getVisibleTestItems(grade, gender);
-                          const itemCodes = items.map(item => item.code);
-                          // 当勾选免测时,清除所有测试项目的验证错误
-                          if (checked) {
-                            form.validateFields(itemCodes).catch(() => {});
-                          }
-                        }
-                      }}
-                    >
-                      免测申请
-                    </Checkbox>
-                  </Form.Item>
-                  
-                  {/* 免测原因选择框 */}
-                  <Form.Item
-                    name="exemptReason"
-                    rules={[
-                      ({ getFieldValue }) => ({
-                        validator(_, value) {
-                          if (getFieldValue('isExempt') && !value) {
-                            return Promise.reject(new Error('请选择免测原因!'));
-                          }
-                          return Promise.resolve();
-                        },
-                      })
-                    ]}
-                    style={{ marginBottom: 0, minWidth: '180px' }}
-                  >
-                    <Select 
-                      placeholder="请选择免测原因" 
-                      style={{ width: '180px' }} 
-                      disabled={!isExempt}
-                      onChange={() => {
-                        // 触发表单验证
-                        form.validateFields(['exemptReason']);
-                      }}
-                    >
-                      <Option value="因病免体">因病免体</Option>
-                      <Option value="因伤免体">因伤免体</Option>
-                      <Option value="重疾免测">重疾免测</Option>
+          <Form
+            form={form}
+            layout="vertical"
+          >
+            <Row gutter={16}>
+              <Col span={8}>
+                <Form.Item name="educationId" label="教育ID">
+                  <Input disabled />
+                </Form.Item>
+              </Col>
+              <Col span={8}>
+                <Form.Item name="studentName" label="学生姓名">
+                  <Input disabled />
+                </Form.Item>
+              </Col>
+              <Col span={8}>
+                <Form.Item name="gender" label="性别">
+                  <Select disabled>
+                    <Option value="male">男</Option>
+                    <Option value="female">女</Option>
+                  </Select>
+                </Form.Item>
+              </Col>
+            </Row>
+            
+            <Row gutter={16}>
+              <Col span={8}>
+                <Form.Item name="grade" label="年级">
+                  <Input disabled />
+                </Form.Item>
+              </Col>
+              <Col span={8}>
+                <Form.Item name="className" label="班级">
+                  <Input disabled />
+                </Form.Item>
+              </Col>
+              <Col span={8}>
+                <Form.Item name="testDate" label="测试日期">
+                  <DatePicker style={{ width: '100%' }} />
+                </Form.Item>
+              </Col>
+            </Row>
+            
+            <Divider orientation="left">考生状态</Divider>
+            
+            <Form.Item name="isExempt" valuePropName="checked">
+              <Checkbox>免测/缺考</Checkbox>
+            </Form.Item>
+            
+            <Form.Item
+              noStyle
+              shouldUpdate={(prevValues, currentValues) => prevValues.isExempt !== currentValues.isExempt}
+            >
+              {({ getFieldValue }) => {
+                const isExempt = getFieldValue('isExempt')
+                if (!isExempt) return null
+                return (
+                  <Form.Item name="exemptReason" label="免测原因" rules={[{ required: true, message: '请选择免测原因' }]}>
+                    <Select placeholder="选择免测原因" style={{ width: 200 }}>
+                      <Option value="伤病免测">伤病免测</Option>
                       <Option value="残疾免测">残疾免测</Option>
-                      <Option value="其他免测">其他免测</Option>
+                      <Option value="缺考">缺考</Option>
+                      <Option value="其他">其他</Option>
                     </Select>
                   </Form.Item>
-                  
-                  {/* 备注说明文字 */}
-                  <span>备注说明</span>
-                  
-                  {/* 备注输入框 */}
-                  <Form.Item
-                    name="remark"
-                    style={{ marginBottom: 0, minWidth: '300px' }}
-                  >
-                    <Input 
-                      placeholder="请输入备注说明（非必填）" 
-                      style={{ width: '300px' }} 
-                      showCount 
-                      maxLength={200} 
-                      disabled={!isExempt}
-                    />
-                  </Form.Item>
-                </div>
-              );
-            }}
-          </Form.Item>
-
-          <Divider titlePlacement="left">测试项目</Divider>
-
-          <Form.Item noStyle shouldUpdate={(prevValues, currentValues) => 
-            prevValues.grade !== currentValues.grade || 
-            prevValues.gender !== currentValues.gender ||
-            prevValues.isExempt !== currentValues.isExempt
-          }>
-            {() => {
-              const grade = form.getFieldValue('grade')
-              const gender = form.getFieldValue('gender')
-              const isExempt = form.getFieldValue('isExempt') || false
-              // 使用record中的grade和gender作为备选值，确保测试项目始终显示
-              const recordGrade = editingId ? testRecords.find(r => r.id === editingId)?.grade : null
-              const recordGender = editingId ? testRecords.find(r => r.id === editingId)?.gender : null
-              const finalGrade = grade || recordGrade || '未知'
-              const finalGender = gender || recordGender || 'male'
-              const items = getVisibleTestItems(finalGrade, finalGender)
-              const rows = []
-              for (let i = 0; i < items.length; i += 2) {
-                const item1 = items[i]
-                const item2 = items[i + 1]
-                rows.push(
-                  <Row gutter={16} key={i}>
-                    <Col span={12}>
-                      <Form.Item
-                        name={item1.code}
-                        label={item1.name}
-                        rules={[
-                          ({ getFieldValue }) => ({
-                            validator(_, value) {
-                            const isExempt = getFieldValue('isExempt');
-                            // 免测状态下不验证
-                            if (isExempt) {
-                              return Promise.resolve();
-                            }
-                            // 非免测状态下验证是否为空
-                            if (!value && value !== 0) {
-                              return Promise.reject(new Error(`请输入${item1.name}!`));
-                            }
-                            // 验证是否为有效数字
-                            if (isNaN(Number(value))) {
-                              return Promise.reject(new Error('请输入数字!'));
-                            }
-                            return Promise.resolve();
-                          },
-                        })
-                        ]}
-                      >
-                        <Input type="number" placeholder={`请输入${item1.name}`} step="0.1" style={{ width: '100%' }} disabled={isExempt} />
-                      </Form.Item>
-                    </Col>
-                    {item2 && (
-                      <Col span={12}>
-                        <Form.Item
-                          name={item2.code}
-                          label={item2.name}
-                          rules={[
-                            ({ getFieldValue }) => ({
-                              validator(_, value) {
-                                const isExempt = getFieldValue('isExempt');
-                                // 免测状态下不验证
-                                if (isExempt) {
-                                  return Promise.resolve();
-                                }
-                                // 非免测状态下验证是否为空
-                                if (!value && value !== 0) {
-                                  return Promise.reject(new Error(`请输入${item2.name}!`));
-                                }
-                                // 验证是否为有效数字
-                                if (isNaN(Number(value))) {
-                                  return Promise.reject(new Error('请输入数字!'));
-                                }
-                                return Promise.resolve();
-                              },
-                            })
-                          ]}
-                        >
-                          <Input type="number" placeholder={`请输入${item2.name}`} step="0.1" style={{ width: '100%' }} disabled={isExempt} />
-                        </Form.Item>
-                      </Col>
-                    )}
-                  </Row>
-                )}
-              return rows
-            }}
-          </Form.Item>
-        </Form>
-      </Modal>
-    </div>
-  )
+                )
+              }}
+            </Form.Item>
+            
+            <Form.Item
+              noStyle
+              shouldUpdate={(prevValues, currentValues) => 
+                prevValues.isExempt !== currentValues.isExempt || 
+                prevValues.grade !== currentValues.grade ||
+                prevValues.gender !== currentValues.gender
+              }
+            >
+              {({ getFieldValue }) => {
+                const isExempt = getFieldValue('isExempt')
+                if (isExempt) return null
+                
+                const grade = getFieldValue('grade') || selectedRecord?.grade
+                const gender = getFieldValue('gender') || selectedRecord?.gender
+                const items = getVisibleTestItems(grade, gender)
+                
+                return (
+                  <>
+                    <Divider orientation="left">测试项目成绩</Divider>
+                    <Row gutter={16}>
+                      {items.map(item => (
+                        <Col span={8} key={item.code}>
+                          <Form.Item 
+                            name={item.code} 
+                            label={item.name}
+                          >
+                            <Input placeholder="输入成绩" />
+                          </Form.Item>
+                        </Col>
+                      ))}
+                    </Row>
+                  </>
+                )
+              }}
+            </Form.Item>
+            
+            <Form.Item name="remark" label="备注">
+              <Input.TextArea rows={2} placeholder="输入备注信息" />
+            </Form.Item>
+          </Form>
+        </Modal>
+      </Card>
+    )
+  } catch (err) {
+    console.error('[ScoreManagement] Render error:', err)
+    console.error('[ScoreManagement] Error stack:', err.stack)
+    throw err
+  }
 }
 
+console.log('[ScoreManagement.jsx] Module loaded')
 export default ScoreManagement

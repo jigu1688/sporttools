@@ -16,7 +16,12 @@ from crud.physical_test_crud import (
     update_physical_test,
     delete_physical_test,
     get_physical_test_statistics,
-    get_physical_test_history
+    get_physical_test_history,
+    get_score_distribution,
+    get_grade_distribution,
+    get_grade_comparison,
+    get_gender_comparison,
+    get_item_analysis
 )
 from schemas import (
     PhysicalTestCreate,
@@ -46,6 +51,26 @@ async def get_statistics(
     # 直接返回统计数据，FastAPI会自动验证和转换为响应模型
     return stats
 
+# 获取详细统计分析数据（分数分布、等级分布、年级对比、性别对比、单项分析）
+@router.get("/statistics/detailed")
+@require_role([UserRoleEnum.admin.value, UserRoleEnum.teacher.value])
+async def get_detailed_statistics(
+    class_id: Optional[int] = Query(None, description="班级ID"),
+    grade: Optional[str] = Query(None, description="年级"),
+    school_year_id: Optional[int] = Query(None, description="学年ID"),
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
+):
+    """获取详细的统计分析数据，包括各种分布和对比数据"""
+    
+    return {
+        "score_distribution": get_score_distribution(db, class_id, grade, school_year_id),
+        "grade_distribution": get_grade_distribution(db, class_id, grade, school_year_id),
+        "grade_comparison": get_grade_comparison(db, school_year_id),
+        "gender_comparison": get_gender_comparison(db, class_id, grade, school_year_id),
+        "item_analysis": get_item_analysis(db, class_id, grade, school_year_id)
+    }
+
 # 获取体测历史数据，支持多条件过滤
 @router.get("/history", response_model=List[dict])
 @require_role([UserRoleEnum.admin.value, UserRoleEnum.teacher.value])
@@ -53,7 +78,6 @@ async def get_physical_test_history_api(
     student_id: Optional[int] = Query(None, description="学生ID"),
     class_id: Optional[int] = Query(None, description="班级ID"),
     grade: Optional[str] = Query(None, description="年级"),
-    academic_year: Optional[str] = Query(None, description="学年"),
     school_year_id: Optional[int] = Query(None, description="学年ID"),
     test_type: Optional[str] = Query(None, description="测试类型"),
     start_date: Optional[date] = Query(None, description="开始日期"),
@@ -73,8 +97,6 @@ async def get_physical_test_history_api(
         filters['class_id'] = class_id
     if grade:
         filters['grade'] = grade
-    if academic_year:
-        filters['academic_year'] = academic_year
     if school_year_id:
         filters['school_year_id'] = school_year_id
     if test_type:

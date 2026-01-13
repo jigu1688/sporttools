@@ -1,6 +1,6 @@
 # 体育教学辅助网站 - 数据库连接和初始化
 
-from sqlalchemy import create_engine, MetaData
+from sqlalchemy import create_engine, MetaData, event
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from config import settings
@@ -14,7 +14,8 @@ engine = create_engine(
     pool_size=10,         # 连接池大小
     max_overflow=20,      # 最大溢出连接数
     pool_timeout=30,      # 获取连接超时时间（秒）
-    pool_use_lifo=True    # 使用后进先出策略
+    pool_use_lifo=True,   # 使用后进先出策略
+    connect_args={"check_same_thread": False} if 'sqlite' in settings.database_url.lower() else {}
 )
 
 # 创建会话工厂

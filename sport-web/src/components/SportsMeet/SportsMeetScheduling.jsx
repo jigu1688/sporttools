@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { Card, Row, Col, Table, Button, Modal, Form, DatePicker, Select, Space, Typography, message, Calendar, Tag } from 'antd'
 import { EditOutlined, DeleteOutlined, PlusOutlined, CalendarOutlined } from '@ant-design/icons'
 import { useSelector, useDispatch } from 'react-redux'
-import { fetchSportsMeets, fetchEvents, fetchRegistrations, fetchReferees, fetchVenues, fetchSchedules, createSchedule, updateScheduleById, deleteScheduleById } from '../../store/sportsMeetSlice'
+import { fetchSportsMeets, fetchEvents, fetchRegistrations, fetchReferees, fetchVenues, fetchSchedules, createSchedule, updateScheduleById, deleteScheduleById, setSchedules } from '../../store/sportsMeetSlice'
 
 const { Title, Text } = Typography
 const { Option } = Select
@@ -713,15 +713,58 @@ const SportsMeetScheduling = () => {
           })
         })
         
-        // 保存自动生成的赛程
+        // 保存自动生成的赛程到后端
         // console.log('\n=== 自动编排完成 ===')
         // console.log('生成赛程总数:', autoSchedules.length)
         
         if (autoSchedules.length === 0) {
           message.warning('自动编排完成，但未生成任何赛程。请检查报名数据是否符合条件，或查看浏览器控制台获取详细信息')
         } else {
+          // 先更新本地状态显示
           dispatch(setSchedules(autoSchedules))
-          message.success('自动编排完成，共生成 ' + autoSchedules.length + ' 个赛程')
+          
+          // 异步保存到后端
+          const saveToBackend = async () => {
+            let successCount = 0
+            let failCount = 0
+            
+            for (const schedule of autoSchedules) {
+              try {
+                // 转换为后端API需要的格式
+                const scheduleData = {
+                  event_id: schedule.eventId,
+                  venue_id: schedule.venueId || null,
+                  referee_id: schedule.refereeId || null,
+                  start_time: schedule.startTime || null,
+                  end_time: schedule.endTime || null,
+                  status: schedule.status || '待开始',
+                  round: schedule.round || 1,
+                  group_number: schedule.groupNumber || null,
+                  notes: schedule.notes || null
+                }
+                
+                await dispatch(createSchedule({ 
+                  sportsMeetId: selectedSportsMeet.id, 
+                  scheduleData 
+                })).unwrap()
+                successCount++
+              } catch (error) {
+                console.error('保存赛程失败:', error, schedule)
+                failCount++
+              }
+            }
+            
+            if (failCount > 0) {
+              message.warning(`自动编排完成：成功保存 ${successCount} 个赛程，失败 ${failCount} 个`)
+            } else {
+              message.success(`自动编排完成，共保存 ${successCount} 个赛程到服务器`)
+            }
+            
+            // 重新加载赛程数据
+            dispatch(fetchSchedules(selectedSportsMeet.id))
+          }
+          
+          saveToBackend()
         }
       }
     })

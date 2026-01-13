@@ -1,14 +1,11 @@
-import { Card } from 'antd'
 import ScoreManagement from '../../components/PhysicalTest/ScoreManagement'
+import ErrorBoundary from '../../components/ErrorBoundary'
 
 const ScoreManagementPage = () => {
-
   return (
-    <div>
-      <Card>
-        <ScoreManagement />
-      </Card>
-    </div>
+    <ErrorBoundary>
+      <ScoreManagement />
+    </ErrorBoundary>
   )
 }
 

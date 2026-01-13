@@ -12,6 +12,9 @@ class Settings(BaseSettings):
     app_version: str = "1.0.0"
     debug: bool = True
     
+    # 生产环境配置
+    production_domain: str = ""  # 生产环境域名，例如: "example.com"
+    
     # 数据库配置
     database_url: str = "sqlite:///./sports_teaching.db"
     database_host: Optional[str] = None
@@ -89,3 +92,6 @@ if not settings.debug:
     # 验证Secret Key是否已设置（仅在生产环境中强制要求）
     if not settings.secret_key or settings.secret_key == "default-secret-key-for-development-only":
         raise ValueError("SECRET_KEY environment variable must be set in production")
+    # 验证生产域名是否已设置
+    if not settings.production_domain:
+        raise ValueError("PRODUCTION_DOMAIN environment variable must be set in production")

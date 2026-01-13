@@ -88,8 +88,8 @@ const Dashboard = () => {
     .slice(0, 5)
     .map(record => ({
       id: record.id,
-      studentName: record.studentName,
-      studentNo: record.educationId, // 使用教育ID作为学号
+      studentName: record.real_name,
+      studentNo: record.student_no,
       className: record.className,
       testDate: record.testDate,
       totalScore: record.totalScore,

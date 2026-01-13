@@ -28,6 +28,7 @@ const Sidebar = () => {
     physicalTestDashboard: ['admin', 'teacher', 'student'],
     testItems: ['admin', 'teacher'],
     scoreManagement: ['admin', 'teacher'],
+    scoreCalculator: ['admin', 'teacher', 'student'],
     statistics: ['admin', 'teacher'],
     scoreStandards: ['admin', 'teacher', 'student'],
     sportsMeetDashboard: ['admin', 'teacher', 'student'],
@@ -81,6 +82,7 @@ const Sidebar = () => {
     if (path === '/physical-test') return 'physicalTestDashboard'
     if (path === '/physical-test/test-items') return 'testItems'
     if (path === '/physical-test/score-management') return 'scoreManagement'
+    if (path === '/physical-test/calculator') return 'scoreCalculator'
     if (path === '/physical-test/statistics') return 'statistics'
     if (path === '/physical-test/score-standards') return 'scoreStandards'
     if (path === '/sports-meet') return 'sportsMeetDashboard'
@@ -170,6 +172,10 @@ const Sidebar = () => {
             {
               key: 'scoreManagement',
               label: <Link to="/physical-test/score-management">成绩管理</Link>
+            },
+            {
+              key: 'scoreCalculator',
+              label: <Link to="/physical-test/calculator">成绩计算器</Link>
             },
             {
               key: 'statistics',

@@ -64,6 +64,8 @@ def get_physical_tests_by_student(db: Session, student_id: int) -> List[dict]:
         "standing_long_jump": test.standing_long_jump,
         "pull_up": test.pull_up,
         "skip_rope": test.skip_rope,
+        "sit_ups": test.sit_ups,
+        "run_50m_8": test.run_50m_8,
         "total_score": test.total_score,
         "totalScore": test.total_score,
         "grade": test.grade,
@@ -98,6 +100,8 @@ def get_physical_tests_by_class(db: Session, class_id: int) -> List[dict]:
         "standing_long_jump": test.standing_long_jump,
         "pull_up": test.pull_up,
         "skip_rope": test.skip_rope,
+        "sit_ups": test.sit_ups,
+        "run_50m_8": test.run_50m_8,
         "total_score": test.total_score,
         "totalScore": test.total_score,
         "grade": test.grade,
@@ -134,6 +138,8 @@ def get_physical_test(db: Session, physical_test_id: int) -> Optional[dict]:
             "standing_long_jump": test.standing_long_jump,
             "pull_up": test.pull_up,
             "skip_rope": test.skip_rope,
+            "sit_ups": test.sit_ups,
+            "run_50m_8": test.run_50m_8,
             "total_score": test.total_score,
             "totalScore": test.total_score,
             "grade": test.grade,
@@ -223,10 +229,13 @@ def get_physical_test_history(db: Session, filters: Optional[Dict[str, Any]] = N
     return [{"id": test.id,
         "student_id": test.student_id,
         "studentName": test.student.real_name if test.student else "",
+        "real_name": test.student.real_name if test.student else "",
         "student_no": test.student.student_no if test.student else "",
+        "education_id": test.student.education_id if test.student else "",
+        "gender": test.student.gender if test.student else "male",
         "class_id": test.class_id,
         "className": test.class_.class_name if test.class_ else "",
-        "grade": test.class_.grade if test.class_ else "",
+        "student_grade": test.class_.grade if test.class_ else "",  # 学生所在年级
         "academic_year": test.class_.school_year.academic_year if test.class_ and test.class_.school_year else "",
         "test_date": test.test_date,
         "testDate": test.test_date,
@@ -241,10 +250,11 @@ def get_physical_test_history(db: Session, filters: Optional[Dict[str, Any]] = N
         "standing_long_jump": test.standing_long_jump,
         "pull_up": test.pull_up,
         "skip_rope": test.skip_rope,
+        "sit_ups": test.sit_ups,
+        "run_50m_8": test.run_50m_8,
         "total_score": test.total_score,
         "totalScore": test.total_score,
-        "grade": test.grade,
-        "gradeLevel": test.grade,
+        "gradeLevel": test.grade,  # 体测等级
         "tester_name": test.tester_name,
         "test_notes": test.test_notes,
         "is_official": test.is_official,
@@ -378,33 +388,62 @@ def get_grade_distribution(db: Session, class_id: int = None, grade: str = None,
 
 # 获取年级成绩对比数据
 def get_grade_comparison(db: Session, school_year_id: int = None) -> dict:
-    """获取各年级成绩对比数据"""
+    """获取各年级成绩对比数据，包括等级分布（按学生所在班级的年级分组）"""
     from sqlalchemy import func
+    from sqlalchemy.orm import joinedload
     
     result = {}
-    query = db.query(PhysicalTest)
+    query = db.query(PhysicalTest).options(joinedload(PhysicalTest.class_))
     
     if school_year_id:
         query = query.filter(PhysicalTest.school_year_id == school_year_id)
     
     tests = query.all()
     
-    # 按年级分组计算平均分
-    grade_scores = {}
+    # 按班级年级分组计算各项统计（不是按体测等级）
+    grade_data = {}
     for test in tests:
-        grade_name = test.grade or "未知年级"
-        if grade_name not in grade_scores:
-            grade_scores[grade_name] = []
+        # 从关联的班级获取年级信息
+        grade_name = test.class_.grade if test.class_ else "未知年级"
+        if grade_name not in grade_data:
+            grade_data[grade_name] = {
+                "scores": [],
+                "excellent": 0,
+                "good": 0,
+                "pass": 0,
+                "fail": 0
+            }
+        
         if test.total_score:
-            grade_scores[grade_name].append(test.total_score)
+            grade_data[grade_name]["scores"].append(test.total_score)
+            # 根据分数计算等级
+            score = test.total_score
+            if score >= 90:
+                grade_data[grade_name]["excellent"] += 1
+            elif score >= 80:
+                grade_data[grade_name]["good"] += 1
+            elif score >= 60:
+                grade_data[grade_name]["pass"] += 1
+            else:
+                grade_data[grade_name]["fail"] += 1
     
-    for grade_name, scores in grade_scores.items():
+    for grade_name, data in grade_data.items():
+        scores = data["scores"]
         if scores:
+            count = len(scores)
             result[grade_name] = {
-                "average": round(sum(scores) / len(scores), 2),
-                "count": len(scores),
+                "average": round(sum(scores) / count, 2),
+                "count": count,
                 "max": max(scores),
-                "min": min(scores)
+                "min": min(scores),
+                "excellent": data["excellent"],
+                "good": data["good"],
+                "pass": data["pass"],
+                "fail": data["fail"],
+                "excellent_rate": round(data["excellent"] / count * 100, 2),
+                "good_rate": round(data["good"] / count * 100, 2),
+                "pass_rate": round(data["pass"] / count * 100, 2),
+                "fail_rate": round(data["fail"] / count * 100, 2)
             }
     
     return result

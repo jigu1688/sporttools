@@ -260,88 +260,27 @@ import { parseGradeCode, parseClassCode } from '../utils/codeMapping'
       }
     ],
   
-  // 体测记录
-  testRecords: [
-    {
-      id: 1,
-      studentName: '学生1',
-      educationId: '20240701001',
-      gender: 'male',
-      grade: '一年级',
-      className: '主校区1班',
-      testDate: '2026-01-04',
-      schoolYearId: 1,
-      schoolYearName: '2025-2026学年',
-      testItems: {
-        height: 120,
-        weight: 25,
-        vitalCapacity: 1500,
-        run50m: 8.5,
-        sitAndReach: 15
-      },
-      totalScore: 85,
-      gradeLevel: '良好',
-      isApproved: true,
-      approvedBy: '管理员',
-      approvedTime: '2026-01-04 10:00:00'
-    },
-    {
-      id: 2,
-      studentName: '学生2',
-      educationId: '20240701002',
-      gender: 'female',
-      grade: '一年级',
-      className: '主校区1班',
-      testDate: '2026-01-04',
-      schoolYearId: 1,
-      schoolYearName: '2025-2026学年',
-      testItems: {
-        height: 115,
-        weight: 22,
-        vitalCapacity: 1400,
-        run50m: 9.0,
-        sitAndReach: 18
-      },
-      totalScore: 82,
-      gradeLevel: '良好',
-      isApproved: true,
-      approvedBy: '管理员',
-      approvedTime: '2026-01-04 10:00:00'
-    },
-    {
-      id: 3,
-      studentName: '学生3',
-      educationId: '20240701003',
-      gender: 'male',
-      grade: '一年级',
-      className: '主校区1班',
-      testDate: '2026-01-04',
-      schoolYearId: 1,
-      schoolYearName: '2025-2026学年',
-      testItems: {
-        height: 125,
-        weight: 28,
-        vitalCapacity: 1600,
-        run50m: 8.0,
-        sitAndReach: 12
-      },
-      totalScore: 88,
-      gradeLevel: '良好',
-      isApproved: false,
-      approvedBy: '',
-      approvedTime: ''
-    }
-  ],
+  // 体测记录（从API加载）
+  testRecords: [],
   
   // 统计数据
   statistics: {
-    totalStudents: 500,
-    testedStudents: 450,
-    excellentRate: 25,
-    goodRate: 40,
-    passRate: 25,
-    failRate: 10,
-    averageScore: 75
+    totalStudents: 0,
+    testedStudents: 0,
+    excellentRate: 0,
+    goodRate: 0,
+    passRate: 0,
+    failRate: 0,
+    averageScore: 0
+  },
+  
+  // 详细统计分析数据
+  detailedStatistics: {
+    scoreDistribution: {},  // 分数分布
+    gradeDistribution: {},  // 等级分布
+    gradeComparison: {},    // 年级对比
+    genderComparison: {},   // 性别对比
+    itemAnalysis: {}        // 单项分析
   },
   
   // 加载状态
@@ -371,6 +310,22 @@ export const fetchPhysicalTestStatistics = createAsyncThunk(
       return await apiClient.get('/physical-tests/statistics')
     } catch (error) {
       return rejectWithValue(error.message || '获取体测统计数据失败')
+    }
+  }
+)
+
+// 异步获取详细统计分析数据
+export const fetchDetailedStatistics = createAsyncThunk(
+  'physicalTest/fetchDetailedStatistics',
+  async (filters = {}, { rejectWithValue }) => {
+    try {
+      const params = {}
+      if (filters.classId) params.class_id = filters.classId
+      if (filters.grade) params.grade = filters.grade
+      if (filters.schoolYearId) params.school_year_id = filters.schoolYearId
+      return await apiClient.get('/physical-tests/statistics/detailed', { params })
+    } catch (error) {
+      return rejectWithValue(error.message || '获取详细统计数据失败')
     }
   }
 )
@@ -417,7 +372,9 @@ export const fetchPhysicalTestHistory = createAsyncThunk(
   'physicalTest/fetchHistory',
   async (filters, { rejectWithValue }) => {
     try {
-      return await apiClient.get('/physical-tests/history', { params: filters })
+      // 默认获取全部数据，limit设为1000
+      const params = { limit: 1000, ...filters }
+      return await apiClient.get('/physical-tests/history', { params })
     } catch (error) {
       return rejectWithValue(error.message || '获取体测历史数据失败')
     }
@@ -539,6 +496,28 @@ export const physicalTestSlice = createSlice({
         state.error = action.payload
       })
     
+    // 处理获取详细统计数据
+    builder
+      .addCase(fetchDetailedStatistics.pending, (state) => {
+        state.loading = true
+        state.error = null
+      })
+      .addCase(fetchDetailedStatistics.fulfilled, (state, action) => {
+        state.loading = false
+        const data = action.payload
+        state.detailedStatistics = {
+          scoreDistribution: data.score_distribution || {},
+          gradeDistribution: data.grade_distribution || {},
+          gradeComparison: data.grade_comparison || {},
+          genderComparison: data.gender_comparison || {},
+          itemAnalysis: data.item_analysis || {}
+        }
+      })
+      .addCase(fetchDetailedStatistics.rejected, (state, action) => {
+        state.loading = false
+        state.error = action.payload
+      })
+    
     // 处理创建体测记录
     builder
       .addCase(createPhysicalTest.pending, (state) => {
@@ -595,13 +574,16 @@ export const physicalTestSlice = createSlice({
       })
       .addCase(fetchPhysicalTestHistory.fulfilled, (state, action) => {
         state.loading = false
-        // 转换API返回的历史数据为前端需要的格式
+        // 转换API返回的历史数据为前端需要的格式，统一使用标准字段名
         state.testRecords = action.payload.map(record => ({
           id: record.id,
-          studentName: record.studentName,
-          educationId: record.student_no,
-          gender: record.student?.gender || 'male',
-          grade: record.grade || '未知年级',
+          student_id: record.student_id,
+          real_name: record.real_name || record.studentName,
+          student_no: record.student_no,
+          education_id: record.education_id,
+          gender: record.gender || record.student?.gender || 'male',
+          grade: record.student_grade || '未知年级',  // 使用 student_grade 字段
+          class_id: record.class_id,
           className: record.className || '未知班级',
           testDate: record.test_date,
           schoolYearId: record.school_year_id || 1,
@@ -616,10 +598,12 @@ export const physicalTestSlice = createSlice({
             sitAndReach: record.sit_and_reach,
             standingLongJump: record.standing_long_jump,
             pullUps: record.pull_up,
-            skipRope: record.skip_rope
+            ropeSkipping: record.skip_rope,
+            sitUps: record.sit_ups,
+            run50m8x: record.run_50m_8
           },
           totalScore: record.total_score,
-          gradeLevel: record.grade,
+          gradeLevel: record.gradeLevel,  // 体测等级
           isApproved: record.is_official,
           approvedBy: record.tester_name,
           approvedTime: record.created_at

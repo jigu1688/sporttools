@@ -470,7 +470,7 @@ const Students = () => {
                   await dispatch(assignStudentToClassAPI({
                     studentId: createdStudent.id,
                     classId: student.classId,
-                    academicYear: new Date().getFullYear().toString() + '-' + (new Date().getFullYear() + 1).toString(),
+                    // academic_year 现在由 class 的 school_year 自动管理
                     joinDate: new Date().toISOString().split('T')[0]
                   })).unwrap()
                   assignSuccessCount++

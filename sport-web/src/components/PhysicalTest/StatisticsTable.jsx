@@ -1,76 +1,47 @@
-import React, { useMemo } from 'react'
-import { Table, Typography } from 'antd'
-import { useSelector } from 'react-redux'
+import React, { useMemo, useEffect } from 'react'
+import { Table, Typography, Spin, Empty } from 'antd'
+import { useSelector, useDispatch } from 'react-redux'
+import { fetchDetailedStatistics } from '../../store/physicalTestSlice'
 
 const { Title } = Typography
 
 const StatisticsTable = () => {
-  const { testRecords } = useSelector(state => state.physicalTest)
-  const { students } = useSelector(state => state.data)
+  const dispatch = useDispatch()
+  const { detailedStatistics, loading } = useSelector(state => state.physicalTest)
   
+  useEffect(() => {
+    dispatch(fetchDetailedStatistics())
+  }, [dispatch])
+  
+  // 从API返回的年级对比数据生成表格数据
   const tableData = useMemo(() => {
-    const gradeStats = {}
+    const gradeComparison = detailedStatistics.gradeComparison || {}
     
-    students.forEach(student => {
-      const grade = student.grade
-      if (!gradeStats[grade]) {
-        gradeStats[grade] = {
-          totalStudents: 0,
-          testedStudents: 0,
-          exemptStudents: 0,
-          totalScore: 0,
-          excellentCount: 0,
-          goodCount: 0,
-          passCount: 0,
-          failCount: 0
-        }
-      }
-      gradeStats[grade].totalStudents++
-    })
+    // 如果没有数据，返回空数组
+    if (Object.keys(gradeComparison).length === 0) {
+      return []
+    }
     
-    testRecords.forEach(record => {
-      const grade = record.grade
-      if (gradeStats[grade]) {
-        gradeStats[grade].testedStudents++
-        const score = record.totalScore || 0
-        gradeStats[grade].totalScore += score
-        
-        const gradeLevel = record.gradeLevel || '及格'
-        if (gradeLevel === '优秀') gradeStats[grade].excellentCount++
-        else if (gradeLevel === '良好') gradeStats[grade].goodCount++
-        else if (gradeLevel === '及格') gradeStats[grade].passCount++
-        else gradeStats[grade].failCount++
-        
-        if (record.studentStatus !== '正常') {
-          gradeStats[grade].exemptStudents++
-        }
-      }
-    })
-    
-    return Object.entries(gradeStats).map(([grade, stats], index) => {
-      const total = stats.testedStudents || 1
+    return Object.entries(gradeComparison).map(([grade, stats], index) => {
       return {
         key: index,
         grade,
-        totalStudents: stats.totalStudents,
-        testedStudents: stats.testedStudents,
-        exemptStudents: stats.exemptStudents,
-        averageScore: stats.totalScore > 0 ? Math.round(stats.totalScore / total) : 0,
-        excellentRate: stats.totalStudents > 0 
-          ? `${Math.round((stats.excellentCount / stats.totalStudents) * 100)}%` 
-          : '0%',
-        goodRate: stats.totalStudents > 0 
-          ? `${Math.round((stats.goodCount / stats.totalStudents) * 100)}%` 
-          : '0%',
-        passRate: stats.totalStudents > 0 
-          ? `${Math.round((stats.passCount / stats.totalStudents) * 100)}%` 
-          : '0%',
-        failRate: stats.totalStudents > 0 
-          ? `${Math.round((stats.failCount / stats.totalStudents) * 100)}%` 
-          : '0%'
+        testedStudents: stats.count || 0,
+        averageScore: Math.round(stats.average || 0),
+        maxScore: stats.max || 0,
+        minScore: stats.min || 0,
+        // 使用后端返回的精确等级统计
+        excellentCount: stats.excellent || 0,
+        goodCount: stats.good || 0,
+        passCount: stats.pass || 0,
+        failCount: stats.fail || 0,
+        excellentRate: stats.excellent_rate ? `${stats.excellent_rate}%` : '0%',
+        goodRate: stats.good_rate ? `${stats.good_rate}%` : '0%',
+        passRate: stats.pass_rate ? `${stats.pass_rate}%` : '0%',
+        failRate: stats.fail_rate ? `${stats.fail_rate}%` : '0%'
       }
-    })
-  }, [testRecords, students])
+    }).sort((a, b) => a.grade.localeCompare(b.grade, 'zh-CN'))
+  }, [detailedStatistics])
   
   const columns = [
     {
@@ -78,28 +49,14 @@ const StatisticsTable = () => {
       dataIndex: 'grade',
       key: 'grade',
       width: 100,
-      sorter: (a, b) => a.grade.localeCompare(b.grade),
+      sorter: (a, b) => a.grade.localeCompare(b.grade, 'zh-CN'),
     },
     {
-      title: '总人数',
-      dataIndex: 'totalStudents',
-      key: 'totalStudents',
-      width: 100,
-      sorter: (a, b) => a.totalStudents - b.totalStudents,
-    },
-    {
-      title: '参加测试人数',
+      title: '测试人数',
       dataIndex: 'testedStudents',
       key: 'testedStudents',
-      width: 120,
-      sorter: (a, b) => a.testedStudents - b.testedStudents,
-    },
-    {
-      title: '免测人数',
-      dataIndex: 'exemptStudents',
-      key: 'exemptStudents',
       width: 100,
-      sorter: (a, b) => a.exemptStudents - b.exemptStudents,
+      sorter: (a, b) => a.testedStudents - b.testedStudents,
     },
     {
       title: '平均分',
@@ -107,6 +64,20 @@ const StatisticsTable = () => {
       key: 'averageScore',
       width: 100,
       sorter: (a, b) => a.averageScore - b.averageScore,
+    },
+    {
+      title: '最高分',
+      dataIndex: 'maxScore',
+      key: 'maxScore',
+      width: 100,
+      sorter: (a, b) => a.maxScore - b.maxScore,
+    },
+    {
+      title: '最低分',
+      dataIndex: 'minScore',
+      key: 'minScore',
+      width: 100,
+      sorter: (a, b) => a.minScore - b.minScore,
     },
     {
       title: '优秀率',
@@ -147,16 +118,28 @@ const StatisticsTable = () => {
     showTotal: (total, range) => `显示 ${range[0]}-${range[1]} 条，共 ${total} 条`
   }
   
+  if (loading) {
+    return (
+      <div style={{ textAlign: 'center', padding: 50 }}>
+        <Spin size="large" />
+      </div>
+    )
+  }
+  
   return (
     <div>
       <Title level={4}>详细统计数据</Title>
-      <Table
-        columns={columns}
-        dataSource={tableData}
-        pagination={paginationConfig}
-        bordered
-        scroll={{ x: 1200 }}
-      />
+      {tableData.length > 0 ? (
+        <Table
+          columns={columns}
+          dataSource={tableData}
+          pagination={paginationConfig}
+          bordered
+          scroll={{ x: 1000 }}
+        />
+      ) : (
+        <Empty description="暂无统计数据，请先录入体测成绩" />
+      )}
     </div>
   )
 }

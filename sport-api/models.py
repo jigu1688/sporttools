@@ -1,6 +1,6 @@
 # 体育教学辅助网站 - 数据模型定义
 
-from sqlalchemy import Column, Integer, String, Date, Text, Boolean, DateTime, Enum, ForeignKey, Float, JSON
+from sqlalchemy import Column, Integer, String, Date, Text, Boolean, DateTime, Enum, ForeignKey, Float, JSON, UniqueConstraint
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from database import Base
@@ -87,12 +87,17 @@ class SchoolYear(Base):
     """学年信息表"""
     __tablename__ = "school_years"
     
+    # 联合唯一约束：同一学校的学年标识唯一
+    __table_args__ = (
+        UniqueConstraint('school_id', 'academic_year', name='uq_school_academic_year'),
+    )
+    
     id = Column(Integer, primary_key=True, index=True)
     school_id = Column(Integer, ForeignKey("schools.id"), comment="所属学校ID")
     year_name = Column(String(50), nullable=False, comment="学年名称")
     start_date = Column(Date, nullable=False, comment="起始日期")
     end_date = Column(Date, nullable=False, comment="结束日期")
-    academic_year = Column(String(20), unique=True, nullable=False, comment="学年标识")
+    academic_year = Column(String(20), nullable=False, index=True, comment="学年标识")
     
     # 状态信息
     status = Column(Enum(SchoolYearStatusEnum), default=SchoolYearStatusEnum.inactive, comment="状态")
@@ -102,6 +107,9 @@ class SchoolYear(Base):
     completed_by = Column(String(50), nullable=True, comment="完成人")
     imported_at = Column(DateTime, nullable=True, comment="导入时间")
     imported_by = Column(String(50), nullable=True, comment="导入人")
+    
+    # 乐观锁版本号
+    version = Column(Integer, default=1, nullable=False, comment="版本号(乐观锁)")
     
     # 关联关系
     school = relationship("School", back_populates="school_years")
@@ -124,7 +132,7 @@ class User(Base):
     real_name = Column(String(100), nullable=False, comment="真实姓名")
     gender = Column(Enum(GenderEnum), comment="性别")
     birth_date = Column(Date, comment="出生日期")
-    id_card = Column(String(18), comment="身份证号")
+    id_card = Column(String(18), unique=True, comment="身份证号")
     photo_url = Column(String(500), comment="照片地址")
     
     # 用户角色
@@ -214,11 +222,10 @@ class Class(Base):
     """班级信息表"""
     __tablename__ = "classes"
     
-    id = Column(Integer, primary_key=True, index=True)
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
     class_name = Column(String(100), nullable=False, comment="班级名称")
     grade = Column(String(20), nullable=False, comment="年级")
     grade_level = Column(Integer, nullable=False, comment="年级级别(1-12)")
-    academic_year = Column(String(20), nullable=False, comment="学年")
     
     # 教师信息
     class_teacher_id = Column(Integer, ForeignKey("users.id"), comment="班主任ID")
@@ -256,7 +263,7 @@ class Student(Base):
     real_name = Column(String(100), nullable=False, comment="姓名")
     gender = Column(Enum(GenderEnum), nullable=False, comment="性别")
     birth_date = Column(Date, nullable=False, comment="出生日期")
-    id_card = Column(String(18), comment="身份证号")
+    id_card = Column(String(18), unique=True, comment="身份证号")
     photo_url = Column(String(500), comment="照片地址")
     
     # 教育和联系信息
@@ -284,6 +291,9 @@ class Student(Base):
     created_at = Column(DateTime, server_default=func.now(), comment="创建时间")
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now(), comment="更新时间")
     
+    # 乐观锁版本号
+    version = Column(Integer, default=1, nullable=False, comment="版本号(乐观锁)")
+    
     # 关联关系
     user = relationship("User", back_populates="student_profiles")
     class_relations = relationship("StudentClassRelation", back_populates="student", cascade="all, delete-orphan")
@@ -299,7 +309,6 @@ class StudentClassRelation(Base):
     id = Column(Integer, primary_key=True, index=True)
     student_id = Column(Integer, ForeignKey("students.id"), nullable=False, comment="学生ID")
     class_id = Column(Integer, ForeignKey("classes.id"), nullable=False, comment="班级ID")
-    academic_year = Column(String(20), nullable=False, comment="学年")
     
     # 关联状态
     status = Column(Enum(StatusEnum), default=StatusEnum.active, comment="状态")
@@ -375,8 +384,8 @@ class PhysicalTest(Base):
     
     # 跑步项目
     run_50m = Column(Float, comment="50米跑(秒)")
-    run_800m = Column(Integer, comment="800米跑(秒)")
-    run_1000m = Column(Integer, comment="1000米跑(秒)")
+    run_800m = Column(Float, comment="800米跑(秒)")  # 改为Float支持小数
+    run_1000m = Column(Float, comment="1000米跑(秒)")  # 改为Float支持小数
     
     # 柔韧性项目
     sit_and_reach = Column(Float, comment="坐位体前屈(cm)")
@@ -385,6 +394,10 @@ class PhysicalTest(Base):
     standing_long_jump = Column(Integer, comment="立定跳远(cm)")
     pull_up = Column(Integer, comment="引体向上(个)")
     skip_rope = Column(Integer, comment="跳绳(个/分钟)")
+    sit_ups = Column(Integer, comment="一分钟仰卧起坐(个)")
+    
+    # 小学特有项目
+    run_50m_8 = Column(Float, comment="50米×8往返跑(秒)")
     
     # 评分和等级
     total_score = Column(Float, comment="总分")

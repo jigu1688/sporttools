@@ -4,20 +4,21 @@ import { UserOutlined, TeamOutlined, CheckCircleOutlined, LineChartOutlined, Tro
 import { useSelector } from 'react-redux'
 
 const StatisticsCards = () => {
-  const { statistics, testRecords } = useSelector(state => state.physicalTest)
-  const { students } = useSelector(state => state.data)
+  const { statistics } = useSelector(state => state.physicalTest)
   
-  const totalStudents = students.length
-  const testedStudents = testRecords.length
-  const exemptStudents = testRecords.filter(r => r.studentStatus !== '正常').length
-  
+  // 使用API返回的统计数据（驼峰命名）
   const {
-    excellent_rate: excellentRate = 0,
-    good_rate: goodRate = 0,
-    pass_rate: passRate = 0,
-    fail_rate: failRate = 0,
-    average_score: averageScore = 0
+    totalStudents = 0,
+    testedStudents = 0,
+    excellentRate = 0,
+    goodRate = 0,
+    passRate = 0,
+    failRate = 0,
+    averageScore = 0
   } = statistics
+
+  // 免测人数暂时设为0（后续可从API获取）
+  const exemptStudents = 0
 
   return (
     <>

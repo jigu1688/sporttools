@@ -173,7 +173,7 @@ async def delete_class(
 @router.get("/{class_id}/students")
 async def get_class_students(
     class_id: int,
-    academic_year: Optional[str] = Query(None, description="学年"),
+    school_year_id: Optional[int] = Query(None, description="学年ID"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
@@ -188,7 +188,7 @@ async def get_class_students(
             )
         
         # 获取班级学生
-        students = class_crud.get_class_students(db, class_id, academic_year=academic_year)
+        students = class_crud.get_class_students(db, class_id, school_year_id=school_year_id)
         return students
     except HTTPException:
         raise

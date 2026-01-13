@@ -1,0 +1,36 @@
+﻿============================================================
+寮€濮嬫祴璇?academic_year 绉婚櫎鍜?school_year_id 鏁村悎
+============================================================
+
+[娴嬭瘯] 鐧诲綍...
+鉁?鐧诲綍鎴愬姛锛宼oken: eyJhbGciOiJIUzI1NiIs...
+
+[娴嬭瘯] 鍒涘缓鐝骇...
+鉁?鍒涘缓鐝骇鎴愬姛: 5 - 娴嬭瘯鐝骇-195137
+  - school_year_id: 1
+  鉁?鍝嶅簲涓棤 academic_year锛堢鍚堥鏈燂級
+
+[娴嬭瘯] 鍒涘缓瀛︾敓...
+鉁?鍒涘缓瀛︾敓鎴愬姛: 6 - 娴嬭瘯瀛︾敓-195137
+  鉁?鍝嶅簲涓棤 academic_year锛堢鍚堥鏈燂級
+
+[娴嬭瘯] 鍒嗛厤瀛︾敓鍒扮彮绾?..
+鉂?鍒嗛厤瀛︾敓澶辫触: 500 - {"detail":"鍒嗛厤瀛︾敓鍒扮彮绾уけ璐? (sqlite3.OperationalError) no such column: student_class_relations.status\n[SQL: SELECT student_class_relations.id AS student_class_relations_id, student_class_relations.student_id AS student_class_relations_student_id, student_class_relations.class_id AS student_class_relations_class_id, student_class_relations.status AS student_class_relations_status, student_class_relations.join_date AS student_class_relations_join_date, student_class_relations.leave_date AS student_class_relations_leave_date, student_class_relations.is_current AS student_class_relations_is_current, student_class_relations.user_id AS student_class_relations_user_id, student_class_relations.created_at AS student_class_relations_created_at \nFROM student_class_relations \nWHERE student_class_relations.student_id = ? AND student_class_relations.class_id = ? AND student_class_relations.is_current = 1\n LIMIT ? OFFSET ?]\n[parameters: (6, 5, 1, 0)]\n(Background on this error at: https://sqlalche.me/e/20/e3q8)","status_code":500,"error":"HTTPException","timestamp":null}
+
+[娴嬭瘯] 鏌ヨ鐝骇瀛︾敓鍒楄〃...
+鉂?鏌ヨ鐝骇瀛︾敓澶辫触: 500 - {"detail":"鑾峰彇鐝骇瀛︾敓鍒楄〃澶辫触: (sqlite3.OperationalError) no such column: student_class_relations.status\n[SQL: SELECT student_class_relations.id AS student_class_relations_id, student_class_relations.student_id AS student_class_relations_student_id, student_class_relations.class_id AS student_class_relations_class_id, student_class_relations.status AS student_class_relations_status, student_class_relations.join_date AS student_class_relations_join_date, student_class_relations.leave_date AS student_class_relations_leave_date, student_class_relations.is_current AS student_class_relations_is_current, student_class_relations.user_id AS student_class_relations_user_id, student_class_relations.created_at AS student_class_relations_created_at, students_1.id AS students_1_id, students_1.student_no AS students_1_student_no, students_1.real_name AS students_1_real_name, students_1.gender AS students_1_gender, students_1.birth_date AS students_1_birth_date, students_1.id_card AS students_1_id_card, students_1.photo_url AS students_1_photo_url, students_1.education_id AS students_1_education_id, students_1.phone AS students_1_phone, students_1.address AS students_1_address, students_1.health_status AS students_1_health_status, students_1.allergy_info AS students_1_allergy_info, students_1.special_notes AS students_1_special_notes, students_1.sports_level AS students_1_sports_level, students_1.sports_specialty AS students_1_sports_specialty, students_1.physical_limitations AS students_1_physical_limitations, students_1.status AS students_1_status, students_1.enrollment_date AS students_1_enrollment_date, students_1.graduation_date AS students_1_graduation_date, students_1.user_id AS students_1_user_id, students_1.created_at AS students_1_created_at, students_1.updated_at AS students_1_updated_at \nFROM student_class_relations JOIN students ON students.id = student_class_relations.student_id JOIN classes ON classes.id = student_class_relations.class_id LEFT OUTER JOIN students AS students_1 ON students_1.id = student_class_relations.student_id \nWHERE student_class_relations.class_id = ? AND student_class_relations.is_current = 1 AND classes.school_year_id = ?]\n[parameters: (5, 1)]\n(Background on this error at: https://sqlalche.me/e/20/e3q8)","status_code":500,"error":"HTTPException","timestamp":null}
+
+[娴嬭瘯] 鏌ヨ浣撴祴鍘嗗彶...
+鉁?鏌ヨ浣撴祴鍘嗗彶鎴愬姛: 鑾峰彇 0 鏉¤褰?
+
+============================================================
+娴嬭瘯鎬荤粨
+============================================================
+鉁?PASS: 鐧诲綍
+鉁?PASS: 鍒涘缓鐝骇
+鉁?PASS: 鍒涘缓瀛︾敓
+鉂?FAIL: 鍒嗛厤瀛︾敓鍒扮彮绾?
+鉂?FAIL: 鏌ヨ鐝骇瀛︾敓鍒楄〃
+鉁?PASS: 鏌ヨ浣撴祴鍘嗗彶
+
+閫氳繃鐜? 4/6 (66%)

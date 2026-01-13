@@ -129,6 +129,7 @@ class StudentCrud:
                     student_dict['current_class_name'] = class_obj.class_name
                     student_dict['current_grade'] = class_obj.grade
                     student_dict['current_grade_level'] = class_obj.grade_level
+                    student_dict['current_school_year_id'] = class_obj.school_year_id
                     if class_obj.school_year:
                         student_dict['current_academic_year'] = class_obj.school_year.academic_year
                     else:
@@ -138,12 +139,14 @@ class StudentCrud:
                     student_dict['current_class_name'] = None
                     student_dict['current_grade'] = None
                     student_dict['current_grade_level'] = None
+                    student_dict['current_school_year_id'] = None
                     student_dict['current_academic_year'] = None
             else:
                 student_dict['current_class_id'] = None
                 student_dict['current_class_name'] = None
                 student_dict['current_grade'] = None
                 student_dict['current_grade_level'] = None
+                student_dict['current_school_year_id'] = None
                 student_dict['current_academic_year'] = None
             
             result.append(student_dict)
@@ -161,6 +164,10 @@ class StudentCrud:
             student_dict = student_data.dict()
         else:
             student_dict = student_data
+        
+        # 移除 class_id 和 join_date 字段（不属于 Student 模型，通过 StudentClassRelation 管理）
+        student_dict.pop('class_id', None)
+        student_dict.pop('join_date', None)
         
         db_student = Student(**student_dict)
         db.add(db_student)
@@ -220,16 +227,8 @@ class StudentCrud:
         
         return result
 
-    def assign_student_to_class(self, db: Session, student_id: int, class_id: int, academic_year: str = None, join_date = None):
-        """将学生分配到班级
-        
-        Args:
-            db: 数据库会话
-            student_id: 学生ID
-            class_id: 班级ID
-            academic_year: 学年（可选，如不提供则从班级获取）
-            join_date: 加入日期（可选，默认今天）
-        """
+    def assign_student_to_class(self, db: Session, student_id: int, class_id: int, join_date=None):
+        """将学生分配到班级。学年信息从班级关联的 school_year 获取，避免重复存储。"""
         from models import StudentClassRelation, StatusEnum
         from datetime import date
         
@@ -240,10 +239,6 @@ class StudentCrud:
         class_obj = db.query(Class).filter(Class.id == class_id).first()
         if not class_obj:
             return False
-        
-        # 如果未提供学年，则从班级获取
-        if academic_year is None:
-            academic_year = class_obj.academic_year
         
         # 检查是否已经存在当前班级关系
         existing_relation = db.query(StudentClassRelation).filter(
@@ -269,7 +264,6 @@ class StudentCrud:
         new_relation = StudentClassRelation(
             student_id=student_id,
             class_id=class_id,
-            academic_year=academic_year,
             join_date=join_date,
             status=StatusEnum.active,
             is_current=True

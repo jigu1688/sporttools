@@ -402,8 +402,8 @@ class ClassResponse(ClassBase):
     current_student_count: int
     status: StatusEnum
     end_date: Optional[date] = None
-    created_at: datetime
-    updated_at: datetime
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
     
     class Config:
         from_attributes = True
@@ -469,6 +469,7 @@ class StudentWithClassResponse(StudentResponse):
     current_class_name: Optional[str] = None
     current_grade: Optional[str] = None
     current_grade_level: Optional[int] = None
+    current_school_year_id: Optional[int] = None
     current_academic_year: Optional[str] = None
     
     class Config:
@@ -653,12 +654,14 @@ class PhysicalTestBase(BaseModel):
     weight: Optional[float] = None
     vital_capacity: Optional[int] = None
     run_50m: Optional[float] = None
-    run_800m: Optional[int] = None
-    run_1000m: Optional[int] = None
+    run_800m: Optional[float] = None  # 改为float支持小数
+    run_1000m: Optional[float] = None  # 改为float支持小数
     sit_and_reach: Optional[float] = None
     standing_long_jump: Optional[int] = None
     pull_up: Optional[int] = None
     skip_rope: Optional[int] = None
+    sit_ups: Optional[int] = None
+    run_50m_8: Optional[float] = None
     total_score: Optional[float] = None
     grade: Optional[str] = None
     tester_name: Optional[str] = None
@@ -677,12 +680,14 @@ class PhysicalTestUpdate(BaseModel):
     weight: Optional[float] = None
     vital_capacity: Optional[int] = None
     run_50m: Optional[float] = None
-    run_800m: Optional[int] = None
-    run_1000m: Optional[int] = None
+    run_800m: Optional[float] = None  # 改为float支持小数
+    run_1000m: Optional[float] = None  # 改为float支持小数
     sit_and_reach: Optional[float] = None
     standing_long_jump: Optional[int] = None
     pull_up: Optional[int] = None
     skip_rope: Optional[int] = None
+    sit_ups: Optional[int] = None
+    run_50m_8: Optional[float] = None
     total_score: Optional[float] = None
     grade: Optional[str] = None
     tester_name: Optional[str] = None

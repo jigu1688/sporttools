@@ -13,6 +13,34 @@ from models import User, SchoolYearStatusEnum
 # 创建路由器
 router = APIRouter(tags=["school-years"])
 
+# ============ 静态路由 (必须在动态路由之前) ============
+
+# 获取当前活跃学年
+@router.get("/active/current", response_model=SchoolYearResponse)
+async def get_active_school_year(
+    school_id: Optional[int] = Query(None, description="学校ID"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """获取当前活跃的学年"""
+    try:
+        school_year = school_year_crud.get_active_school_year(db, school_id)
+        if not school_year:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="当前没有活跃的学年"
+            )
+        return school_year
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"获取当前学年失败: {str(e)}"
+        )
+
+# ============ 列表和创建路由 ============
+
 # 获取学年列表
 @router.get("", response_model=List[SchoolYearResponse])
 async def get_school_years(
@@ -65,12 +93,16 @@ async def create_school_year(
 ):
     """创建新学年"""
     try:
-        # 检查学年标识是否已存在
-        existing_year = school_year_crud.get_school_year_by_academic_year(db, school_year_data.academic_year)
+        # 检查同一学校内学年标识是否已存在
+        existing_year = school_year_crud.get_school_year_by_academic_year(
+            db, 
+            school_year_data.academic_year,
+            school_id=school_year_data.school_id
+        )
         if existing_year:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="该学年标识已存在"
+                detail="该学校的此学年标识已存在"
             )
         
         # 创建学年
@@ -259,30 +291,6 @@ async def promote_school_year(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"学年升级失败: {str(e)}"
-        )
-
-# 获取当前活跃学年
-@router.get("/active/current", response_model=SchoolYearResponse)
-async def get_active_school_year(
-    school_id: Optional[int] = Query(None, description="学校ID"),
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
-    """获取当前活跃的学年"""
-    try:
-        school_year = school_year_crud.get_active_school_year(db, school_id)
-        if not school_year:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="当前没有活跃的学年"
-            )
-        return school_year
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"获取当前学年失败: {str(e)}"
         )
 
 

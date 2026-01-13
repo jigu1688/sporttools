@@ -5,6 +5,10 @@ class SchoolCrud:
     def get_school(self, db: Session, school_id: int):
         return db.query(School).filter(School.id == school_id).first()
 
+    def get_school_by_id(self, db: Session, school_id: int):
+        """Alias for get_school for API compatibility"""
+        return self.get_school(db, school_id)
+
     def get_schools(self, db: Session, skip: int = 0, limit: int = 100):
         return db.query(School).offset(skip).limit(limit).all()
 

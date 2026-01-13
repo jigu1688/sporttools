@@ -37,7 +37,7 @@ apiClient.interceptors.request.use(
           }
         }
       } catch (error) {
-        console.debug('获取令牌失败:', error)
+        // 静默处理令牌获取失败
       }
     }
     return config
@@ -53,15 +53,22 @@ apiClient.interceptors.response.use(
     return response.data
   },
   error => {
+    console.error('[apiClient] 请求错误:', error.config?.url, 'status:', error.response?.status, error.response?.data)
+    
     // 处理401未授权错误和403权限不足错误
-    if (error.response && (error.response.status === 401 || error.response.status === 403)) {
+    // 但不在登录请求上执行跳转逻辑
+    const isLoginRequest = error.config?.url?.includes('/auth/login')
+    if (!isLoginRequest && error.response && (error.response.status === 401 || error.response.status === 403)) {
+      console.warn('[apiClient] 401/403 错误，Token可能已过期，请重新登录')
       // 清除本地存储的认证状态
       if (typeof window !== 'undefined') {
         localStorage.removeItem('persist:root')
         localStorage.removeItem('auth')
+        // 延迟重定向，让用户看到错误信息
+        setTimeout(() => {
+          window.location.href = '/login'
+        }, 100)
       }
-      // 跳转到登录页
-      window.location.href = '/login'
     }
     return Promise.reject(error)
   }

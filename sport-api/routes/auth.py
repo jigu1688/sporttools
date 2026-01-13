@@ -1,7 +1,7 @@
 # 体育教学辅助网站 - 用户认证API路由
 # 提供登录、注册、用户管理等功能
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 from typing import Optional
@@ -17,6 +17,7 @@ from auth import ACCESS_TOKEN_EXPIRE_MINUTES, REFRESH_TOKEN_EXPIRE_DAYS
 from crud import user_crud
 from auth import AuthService, get_current_user, require_permissions, PermissionType
 from models import UserRoleEnum, StatusEnum
+from middleware.rate_limiting import limiter
 
 # 创建路由器
 router = APIRouter(tags=["auth"])
@@ -39,7 +40,8 @@ def get_current_user(
     return AuthService.get_current_user(credentials.credentials, db)
 
 @router.post("/login", response_model=TokenResponse)
-async def login(user_credentials: UserLogin, db: Session = Depends(get_db)):
+# @limiter.limit("5/minute")  # 暂时禁用限速 - slowapi兼容性问题
+async def login(request: Request, user_credentials: UserLogin, db: Session = Depends(get_db)):
     """
     用户登录
     
@@ -48,7 +50,6 @@ async def login(user_credentials: UserLogin, db: Session = Depends(get_db)):
     try:
         # 查找用户
         user = user_crud.get_user_by_username(db, user_credentials.username)
-        print(f"登录尝试: 用户名={user_credentials.username}, 用户存在={user is not None}")
         
         if not user:
             raise HTTPException(
@@ -59,26 +60,15 @@ async def login(user_credentials: UserLogin, db: Session = Depends(get_db)):
         
         # 验证密码
         is_password_valid = AuthService.verify_password(user_credentials.password, user.hashed_password)
-        print(f"密码验证结果: {is_password_valid}")
         
         if not is_password_valid:
-            # 如果密码验证失败，尝试将用户密码重置为默认密码（仅开发环境）
-            if user.username == "admin_user" and user_credentials.password == "Admin123!":
-                print("尝试重置admin_user密码为默认密码")
-                # 使用已导入的AuthService，避免重新导入
-                user.hashed_password = AuthService.get_password_hash("Admin123!")
-                db.commit()
-                db.refresh(user)
-                print("admin_user密码重置成功")
-            else:
-                raise HTTPException(
-                    status_code=status.HTTP_401_UNAUTHORIZED,
-                    detail="用户名或密码错误",
-                    headers={"WWW-Authenticate": "Bearer"},
-                )
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="用户名或密码错误",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
         
         # 检查用户状态
-        print(f"用户状态: {user.status.value}")
         if user.status.value != "active":
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
@@ -137,7 +127,8 @@ async def login(user_credentials: UserLogin, db: Session = Depends(get_db)):
         )
 
 @router.post("/register", response_model=UserResponse, status_code=201)
-async def register(user_data: UserCreate, db: Session = Depends(get_db)):
+# @limiter.limit("3/minute")  # 暂时禁用限速 - slowapi兼容性问题
+async def register(request: Request, user_data: UserCreate, db: Session = Depends(get_db)):
     """
     用户注册
     
@@ -536,7 +527,9 @@ async def update_user_status(
         )
 
 @router.post("/password-reset-request")
+# @limiter.limit("3/minute")  # 暂时禁用限速 - slowapi兼容性问题
 async def password_reset_request(
+    http_request: Request,
     request: PasswordResetRequest,
     db: Session = Depends(get_db)
 ):
@@ -564,7 +557,9 @@ async def password_reset_request(
         )
 
 @router.post("/password-reset-confirm")
+# @limiter.limit("3/minute")  # 暂时禁用限速 - slowapi兼容性问题
 async def password_reset_confirm(
+    http_request: Request,
     request: PasswordResetConfirmRequest,
     db: Session = Depends(get_db)
 ):

@@ -32,23 +32,36 @@ const calculateAge = (birthDate) => {
 }
 
 // 标准化学生数据，统一前端使用的字段
+// 标准字段: real_name, student_no, education_id, class_id, birth_date, gender
 const normalizeStudent = (student = {}) => {
-  const birthDate = student.birth_date || student.birthDate
+  const birth_date = student.birth_date || student.birthDate
   return {
     ...student,
-    name: student.real_name || student.name,
-    birthDate: birthDate,
-    idCard: student.id_card || student.idCard,
-    studentId: student.student_no || student.studentId,
-    educationId: student.education_id || student.educationId,
+    // 核心标识字段
+    id: student.id,
+    student_no: student.student_no || student.studentId,
+    education_id: student.education_id || student.educationId,
+    // 基本信息字段
+    real_name: student.real_name || student.name,
+    gender: student.gender,
+    birth_date: birth_date,
+    id_card: student.id_card || student.idCard,
+    // 联系信息
     phone: student.phone,
     address: student.address,
     // 从出生日期自动计算年龄
-    age: calculateAge(birthDate),
-    // 映射年级和班级字段
+    age: calculateAge(birth_date),
+    // 班级相关字段
     grade: student.current_grade || student.grade,
     className: student.current_class_name || student.className,
-    classId: student.current_class_id || student.classId || student.class_id
+    class_id: student.current_class_id || student.class_id || student.classId,
+    // 兼容旧字段名（逐步废弃）
+    name: student.real_name || student.name,
+    birthDate: birth_date,
+    idCard: student.id_card || student.idCard,
+    studentId: student.student_no || student.studentId,
+    educationId: student.education_id || student.educationId,
+    classId: student.current_class_id || student.class_id || student.classId
   }
 }
 
@@ -59,6 +72,39 @@ const fetchStudents = createAsyncThunk(
     try {
       const response = await apiClient.get('/students', { params })
       return response
+    } catch (error) {
+      return rejectWithValue(error.response?.data?.detail || '获取学生列表失败')
+    }
+  }
+)
+
+// 获取全部学生列表（分页加载所有数据）
+const fetchAllStudents = createAsyncThunk(
+  'data/fetchAllStudents',
+  async (_, { rejectWithValue }) => {
+    try {
+      const pageSize = 100 // 后端限制每页最大100
+      let allStudents = []
+      let page = 1
+      let hasMore = true
+      
+      while (hasMore) {
+        const response = await apiClient.get('/students', { 
+          params: { page, page_size: pageSize } 
+        })
+        const items = response.items || response || []
+        allStudents = [...allStudents, ...items]
+        
+        // 检查是否还有更多数据
+        const total = response.total || 0
+        hasMore = allStudents.length < total
+        page++
+        
+        // 安全限制，防止无限循环
+        if (page > 100) break
+      }
+      
+      return { items: allStudents, total: allStudents.length }
     } catch (error) {
       return rejectWithValue(error.response?.data?.detail || '获取学生列表失败')
     }
@@ -159,12 +205,11 @@ const deleteClassAPI = createAsyncThunk(
 // 将学生分配到班级
 const assignStudentToClassAPI = createAsyncThunk(
   'data/assignStudentToClassAPI',
-  async ({ studentId, classId, academicYear, joinDate }, { rejectWithValue }) => {
+  async ({ studentId, classId, joinDate }, { rejectWithValue }) => {
     try {
-      // 构建查询参数
+      // 构建查询参数（移除 academic_year，使用 class 关联的 school_year_id）
       const params = new URLSearchParams({ 
-        class_id: classId, 
-        academic_year: academicYear 
+        class_id: classId
       })
       if (joinDate) {
         params.append('join_date', joinDate)
@@ -355,21 +400,34 @@ const dataSlice = createSlice({
       })
       .addCase(fetchStudents.fulfilled, (state, action) => {
         state.loading = false
-        console.log('[dataSlice] fetchStudents.fulfilled - RAW payload:', JSON.stringify(action.payload))
-        console.log('[dataSlice] payload.items:', action.payload.items)
-        console.log('[dataSlice] payload type:', Array.isArray(action.payload) ? 'array' : typeof action.payload)
         const studentsData = action.payload.items || action.payload
-        console.log('[dataSlice] extracted students:', studentsData)
         
         // 使用统一的normalizeStudent函数转换字段
         const transformedStudents = (Array.isArray(studentsData) ? studentsData : []).map(normalizeStudent)
         
         state.students = transformedStudents
-        console.log('[dataSlice] students updated to:', state.students.length, 'records')
-        console.log('[dataSlice] state.students IS array?', Array.isArray(state.students))
-        console.log('[dataSlice] first student:', state.students[0])
       })
       .addCase(fetchStudents.rejected, (state, action) => {
+        state.loading = false
+        state.error = action.payload
+      })
+    
+    // 处理获取全部学生列表
+    builder
+      .addCase(fetchAllStudents.pending, (state) => {
+        state.loading = true
+        state.error = null
+      })
+      .addCase(fetchAllStudents.fulfilled, (state, action) => {
+        state.loading = false
+        const studentsData = action.payload.items || action.payload
+        
+        // 使用统一的normalizeStudent函数转换字段
+        const transformedStudents = (Array.isArray(studentsData) ? studentsData : []).map(normalizeStudent)
+        
+        state.students = transformedStudents
+      })
+      .addCase(fetchAllStudents.rejected, (state, action) => {
         state.loading = false
         state.error = action.payload
       })
@@ -438,18 +496,12 @@ const dataSlice = createSlice({
       })
       .addCase(fetchClasses.fulfilled, (state, action) => {
         state.loading = false
-        console.log('[dataSlice] fetchClasses.fulfilled - RAW payload:', JSON.stringify(action.payload))
-        console.log('[dataSlice] payload.items:', action.payload?.items)
-        console.log('[dataSlice] payload type:', Array.isArray(action.payload) ? 'array' : typeof action.payload)
         const classesData = action.payload?.items || action.payload || []
-        console.log('[dataSlice] extracted classes:', classesData)
         
         // 转换字段名以匹配前端组件的期望
         const transformedClasses = (Array.isArray(classesData) ? classesData : []).map(normalizeClass)
         
         state.classes = transformedClasses
-        console.log('[dataSlice] classes updated to:', state.classes.length, 'records')
-        console.log('[dataSlice] state.classes IS array?', Array.isArray(state.classes))
       })
       .addCase(fetchClasses.rejected, (state, action) => {
         state.loading = false
@@ -511,6 +563,7 @@ export const {
 // 导出API相关的thunk actions
 export {
   fetchStudents,
+  fetchAllStudents,
   createStudentAPI,
   updateStudentAPI,
   deleteStudentAPI,

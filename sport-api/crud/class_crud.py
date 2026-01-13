@@ -2,13 +2,14 @@ from sqlalchemy.orm import Session
 from sqlalchemy import and_, or_
 from sqlalchemy.orm import joinedload
 from models import Class
+from typing import List, Optional
 
 class ClassCrud:
     def get_class(self, db: Session, class_id: int):
         return db.query(Class).filter(Class.id == class_id).first()
 
     def get_classes(self, db: Session, school_id: int = None, school_year_id: int = None, grade: str = None, skip: int = 0, limit: int = 100):
-        query = db.query(Class).options(joinedload(Class.school_year))
+        query = db.query(Class)
         
         # 添加筛选条件
         if school_id:
@@ -80,5 +81,37 @@ class ClassCrud:
         except Exception as e:
             db.rollback()
             return {"success": False, "message": f"删除失败: {str(e)}"}
+
+    def get_class_students(self, db: Session, class_id: int, school_year_id: Optional[int] = None) -> List[dict]:
+        """获取班级学生列表，仅返回当前在班级的学生"""
+        from models import StudentClassRelation, Student
+        
+        query = db.query(StudentClassRelation).join(Student).filter(
+            StudentClassRelation.class_id == class_id,
+            StudentClassRelation.is_current == True
+        )
+        
+        if school_year_id:
+            query = query.join(Class).filter(Class.school_year_id == school_year_id)
+        
+        relations = query.options(joinedload(StudentClassRelation.student)).all()
+        
+        students = []
+        for relation in relations:
+            student = relation.student
+            students.append({
+                "id": student.id,
+                "student_no": student.student_no,
+                "real_name": student.real_name,
+                "gender": student.gender.value if student.gender else None,
+                "status": student.status.value if student.status else None,
+                "class_id": relation.class_id,
+                "join_date": relation.join_date,
+                "leave_date": relation.leave_date,
+                "school_year_id": relation.class_.school_year_id if relation.class_ else None,
+                "academic_year": relation.class_.school_year.academic_year if relation.class_ and relation.class_.school_year else None
+            })
+        
+        return students
 
 class_crud = ClassCrud()

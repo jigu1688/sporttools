@@ -92,7 +92,7 @@ export const deleteSportsMeetById = createAsyncThunk(
   }
 )
 
-// Async thunk: fetch events list
+// Async thunk
 export const fetchEvents = createAsyncThunk(
   'sportsMeet/fetchEvents',
   async (sportsMeetId, { rejectWithValue }) => {
@@ -105,7 +105,7 @@ export const fetchEvents = createAsyncThunk(
   }
 )
 
-// Async thunk: fetch single event detail
+// Async thunk
 export const fetchEventById = createAsyncThunk(
   'sportsMeet/fetchEventById',
   async ({ sportsMeetId, eventId }, { rejectWithValue }) => {
@@ -118,7 +118,7 @@ export const fetchEventById = createAsyncThunk(
   }
 )
 
-// Async thunk: create event
+// Async thunk
 export const createEvent = createAsyncThunk(
   'sportsMeet/createEvent',
   async ({ sportsMeetId, eventData }, { rejectWithValue }) => {
@@ -131,7 +131,7 @@ export const createEvent = createAsyncThunk(
   }
 )
 
-// Async thunk: update event
+// Async thunk
 export const updateEventById = createAsyncThunk(
   'sportsMeet/updateEventById',
   async ({ sportsMeetId, eventId, eventData }, { rejectWithValue }) => {
@@ -144,7 +144,7 @@ export const updateEventById = createAsyncThunk(
   }
 )
 
-// Async thunk: delete event
+// Async thunk
 export const deleteEventById = createAsyncThunk(
   'sportsMeet/deleteEventById',
   async ({ sportsMeetId, eventId }, { rejectWithValue }) => {
@@ -157,8 +157,8 @@ export const deleteEventById = createAsyncThunk(
   }
 )
 
-// Registration management related async thunks
-// Async thunk: fetch registrations list
+// Registration management
+// Async thunk
 export const fetchRegistrations = createAsyncThunk(
   'sportsMeet/fetchRegistrations',
   async ({ sportsMeetId, filters = {} }, { rejectWithValue }) => {
@@ -172,7 +172,7 @@ export const fetchRegistrations = createAsyncThunk(
   }
 )
 
-// Async thunk: create registration
+// Async thunk
 export const createRegistration = createAsyncThunk(
   'sportsMeet/createRegistration',
   async ({ sportsMeetId, registrationData }, { rejectWithValue }) => {
@@ -185,7 +185,7 @@ export const createRegistration = createAsyncThunk(
   }
 )
 
-// Async thunk: batch create registrations
+// Async thunk
 export const batchCreateRegistrations = createAsyncThunk(
   'sportsMeet/batchCreateRegistrations',
   async ({ sportsMeetId, registrationsData }, { rejectWithValue }) => {
@@ -198,7 +198,7 @@ export const batchCreateRegistrations = createAsyncThunk(
   }
 )
 
-// Async thunk: delete registration
+// Async thunk
 export const deleteRegistrationById = createAsyncThunk(
   'sportsMeet/deleteRegistrationById',
   async ({ sportsMeetId, registrationId }, { rejectWithValue }) => {
@@ -211,8 +211,8 @@ export const deleteRegistrationById = createAsyncThunk(
   }
 )
 
-// Registration approval related async thunks
-// Async thunk: fetch pending registrations
+// Registration management
+// 寮傛thunk锛氳幏鍙栧緟瀹℃牳鎶ュ悕
 export const fetchPendingRegistrations = createAsyncThunk(
   'sportsMeet/fetchPendingRegistrations',
   async (sportsMeetId, { rejectWithValue }) => {
@@ -225,7 +225,7 @@ export const fetchPendingRegistrations = createAsyncThunk(
   }
 )
 
-// Async thunk: approve registration
+// 寮傛thunk锛氬鏍搁€氳繃鎶ュ悕
 export const approveRegistration = createAsyncThunk(
   'sportsMeet/approveRegistration',
   async ({ sportsMeetId, registrationId }, { rejectWithValue }) => {
@@ -238,7 +238,7 @@ export const approveRegistration = createAsyncThunk(
   }
 )
 
-// Async thunk: reject registration
+// Async thunk
 export const rejectRegistration = createAsyncThunk(
   'sportsMeet/rejectRegistration',
   async ({ sportsMeetId, registrationId, reason }, { rejectWithValue }) => {
@@ -251,8 +251,8 @@ export const rejectRegistration = createAsyncThunk(
   }
 )
 
-// Venue management related async thunks
-// Async thunk: fetch venues list
+// Venue management
+// Async thunk
 export const fetchVenues = createAsyncThunk(
   'sportsMeet/fetchVenues',
   async (_, { rejectWithValue }) => {
@@ -265,7 +265,7 @@ export const fetchVenues = createAsyncThunk(
   }
 )
 
-// Async thunk: fetch single venue detail
+// Async thunk
 export const fetchVenueById = createAsyncThunk(
   'sportsMeet/fetchVenueById',
   async (venueId, { rejectWithValue }) => {
@@ -278,7 +278,7 @@ export const fetchVenueById = createAsyncThunk(
   }
 )
 
-// Async thunk: create venue
+// Async thunk
 export const createVenue = createAsyncThunk(
   'sportsMeet/createVenue',
   async (venueData, { rejectWithValue }) => {
@@ -291,7 +291,7 @@ export const createVenue = createAsyncThunk(
   }
 )
 
-// Async thunk: update venue
+// Async thunk
 export const updateVenueById = createAsyncThunk(
   'sportsMeet/updateVenueById',
   async ({ venueId, venueData }, { rejectWithValue }) => {
@@ -304,7 +304,7 @@ export const updateVenueById = createAsyncThunk(
   }
 )
 
-// Async thunk: delete venue
+// Async thunk
 export const deleteVenueById = createAsyncThunk(
   'sportsMeet/deleteVenueById',
   async (venueId, { rejectWithValue }) => {
@@ -317,8 +317,8 @@ export const deleteVenueById = createAsyncThunk(
   }
 )
 
-// Referee management related async thunks
-// Async thunk: fetch referees list
+// Referee management
+// Async thunk
 export const fetchReferees = createAsyncThunk(
   'sportsMeet/fetchReferees',
   async (_, { rejectWithValue }) => {
@@ -331,7 +331,7 @@ export const fetchReferees = createAsyncThunk(
   }
 )
 
-// Async thunk: fetch single referee detail
+// Async thunk
 export const fetchRefereeById = createAsyncThunk(
   'sportsMeet/fetchRefereeById',
   async (refereeId, { rejectWithValue }) => {
@@ -344,7 +344,7 @@ export const fetchRefereeById = createAsyncThunk(
   }
 )
 
-// Async thunk: create referee
+// Async thunk
 export const createReferee = createAsyncThunk(
   'sportsMeet/createReferee',
   async (refereeData, { rejectWithValue }) => {
@@ -357,7 +357,7 @@ export const createReferee = createAsyncThunk(
   }
 )
 
-// Async thunk: update referee
+// Async thunk
 export const updateRefereeById = createAsyncThunk(
   'sportsMeet/updateRefereeById',
   async ({ refereeId, refereeData }, { rejectWithValue }) => {
@@ -370,7 +370,7 @@ export const updateRefereeById = createAsyncThunk(
   }
 )
 
-// Async thunk: delete referee
+// Async thunk
 export const deleteRefereeById = createAsyncThunk(
   'sportsMeet/deleteRefereeById',
   async (refereeId, { rejectWithValue }) => {
@@ -383,8 +383,8 @@ export const deleteRefereeById = createAsyncThunk(
   }
 )
 
-// Schedule management related async thunks
-// Async thunk: fetch schedules list
+// Schedule management
+// Async thunk
 export const fetchSchedules = createAsyncThunk(
   'sportsMeet/fetchSchedules',
   async ({ sportsMeetId }, { rejectWithValue }) => {
@@ -397,7 +397,7 @@ export const fetchSchedules = createAsyncThunk(
   }
 )
 
-// Async thunk: fetch single schedule detail
+// Async thunk
 export const fetchScheduleById = createAsyncThunk(
   'sportsMeet/fetchScheduleById',
   async ({ sportsMeetId, scheduleId }, { rejectWithValue }) => {
@@ -410,7 +410,7 @@ export const fetchScheduleById = createAsyncThunk(
   }
 )
 
-// Async thunk: create schedule
+// Async thunk
 export const createSchedule = createAsyncThunk(
   'sportsMeet/createSchedule',
   async ({ sportsMeetId, scheduleData }, { rejectWithValue }) => {
@@ -423,7 +423,7 @@ export const createSchedule = createAsyncThunk(
   }
 )
 
-// Async thunk: update schedule
+// Async thunk
 export const updateScheduleById = createAsyncThunk(
   'sportsMeet/updateScheduleById',
   async ({ sportsMeetId, scheduleId, scheduleData }, { rejectWithValue }) => {
@@ -436,7 +436,7 @@ export const updateScheduleById = createAsyncThunk(
   }
 )
 
-// Async thunk: delete schedule
+// Async thunk
 export const deleteScheduleById = createAsyncThunk(
   'sportsMeet/deleteScheduleById',
   async ({ sportsMeetId, scheduleId }, { rejectWithValue }) => {
@@ -449,8 +449,8 @@ export const deleteScheduleById = createAsyncThunk(
   }
 )
 
-// Results management related async thunks
-// Async thunk: fetch results list
+// Score management
+// Async thunk
 export const fetchResults = createAsyncThunk(
   'sportsMeet/fetchResults',
   async ({ sportsMeetId, eventId }, { rejectWithValue }) => {
@@ -463,7 +463,7 @@ export const fetchResults = createAsyncThunk(
   }
 )
 
-// Async thunk: fetch single result detail
+// Async thunk
 export const fetchResultById = createAsyncThunk(
   'sportsMeet/fetchResultById',
   async ({ sportsMeetId, resultId }, { rejectWithValue }) => {
@@ -476,7 +476,7 @@ export const fetchResultById = createAsyncThunk(
   }
 )
 
-// Async thunk: create result
+// Async thunk
 export const createResult = createAsyncThunk(
   'sportsMeet/createResult',
   async ({ sportsMeetId, resultData }, { rejectWithValue }) => {
@@ -489,7 +489,7 @@ export const createResult = createAsyncThunk(
   }
 )
 
-// Async thunk: update result
+// Async thunk
 export const updateResultById = createAsyncThunk(
   'sportsMeet/updateResultById',
   async ({ sportsMeetId, resultId, resultData }, { rejectWithValue }) => {
@@ -502,7 +502,7 @@ export const updateResultById = createAsyncThunk(
   }
 )
 
-// Async thunk: delete result
+// Async thunk
 export const deleteResultById = createAsyncThunk(
   'sportsMeet/deleteResultById',
   async ({ sportsMeetId, resultId }, { rejectWithValue }) => {
@@ -515,63 +515,56 @@ export const deleteResultById = createAsyncThunk(
   }
 )
 
-// Initial state
-const initialState = {
-  // Dashboard data
-  dashboardData: {
+// 鍒濆鐘舵€?const initialState = {
+  // 浠〃鐩樻暟鎹?  dashboardData: {
     totalSportsMeets: 0,
     upcomingSportsMeets: 0,
     totalAthletes: 0,
     totalEvents: 0,
     totalRegistrations: 0
   },
-  // Sports meets list
-  sportsMeets: [],
-  // Currently selected sports meet
+  // 杩愬姩浼氬垪琛?  sportsMeets: [],
+  // 褰撳墠閫変腑鐨勮繍鍔ㄤ細
   currentSportsMeet: null,
-  // Events list
+  // 椤圭洰鍒楄〃
   events: [],
-  // Athletes list
-  athletes: [],
-  // Registrations information
+  // 杩愬姩鍛樺垪琛?  athletes: [],
+  // Registration management
   registrations: [],
-  // Schedules information
+  // Schedule management
   schedules: [],
-  // Groups information
+  // 鍒嗙粍淇℃伅
   groups: [],
-  // Results information
+  // Score management
   results: [],
-  // Referees list
+  // Referee management
   referees: [],
-  // Referee assignments
+  // Referee management
   refereeAssignments: [],
-  // Numbering rules configuration
+  // 缂栧彿瑙勫垯閰嶇疆
   numberingRules: {
-    // Default rules
+    // 榛樿瑙勫垯
     default: {
-      format: 'grade+class+gender+sequence', // Numbering format: grade + class + gender + sequence
-      gradeDigits: 1, // Grade digits
-      classDigits: 1, // Class digits
-      genderDigits: 1, // Gender digits (1: male, 2: female)
-      sequenceDigits: 1, // Sequence digits
-      separator: '' // Separator
-    }
+      format: 'grade+class+gender+sequence', // 缂栧彿鏍煎紡锛氬勾绾?鐝骇+鎬у埆+搴忓彿
+      gradeDigits: 1, // 骞寸骇浣嶆暟
+      classDigits: 1, // 鐝骇浣嶆暟
+      genderDigits: 1, // 鎬у埆浣嶆暟锛?:鐢? 2:濂筹級
+      sequenceDigits: 1, // 搴忓彿浣嶆暟
+      separator: '' // 鍒嗛殧绗?    }
   },
-  // Venues related
+  // Venue management
   venues: [],
-  // Loading state
-  loading: false,
-  // Error message
+  // 鍔犺浇鐘舵€?  loading: false,
+  // 閿欒淇℃伅
   error: null
 }
 
-// Create sports meet slice
+// 鍒涘缓杩愬姩浼歴lice
 export const sportsMeetSlice = createSlice({
   name: 'sportsMeet',
   initialState,
   reducers: {
-    // Sports meet related
-    setSportsMeets: (state, action) => {
+    // 杩愬姩浼氱浉鍏?    setSportsMeets: (state, action) => {
       state.sportsMeets = action.payload
     },
     addSportsMeet: (state, action) => {
@@ -590,7 +583,7 @@ export const sportsMeetSlice = createSlice({
       state.currentSportsMeet = action.payload
     },
     
-    // Event related
+    // 椤圭洰鐩稿叧
     setEvents: (state, action) => {
       state.events = action.payload
     },
@@ -607,8 +600,7 @@ export const sportsMeetSlice = createSlice({
       state.events = state.events.filter(event => event.id !== action.payload)
     },
     
-    // Athlete related
-    setAthletes: (state, action) => {
+    // 杩愬姩鍛樼浉鍏?    setAthletes: (state, action) => {
       state.athletes = action.payload
     },
     addAthlete: (state, action) => {
@@ -624,7 +616,7 @@ export const sportsMeetSlice = createSlice({
       state.athletes = state.athletes.filter(athlete => athlete.id !== action.payload)
     },
     
-    // Registration related
+    // Registration management
     setRegistrations: (state, action) => {
       state.registrations = action.payload
     },
@@ -647,7 +639,7 @@ export const sportsMeetSlice = createSlice({
       state.registrations = state.registrations.filter(registration => !action.payload.includes(registration.id))
     },
     
-    // Schedule related
+    // Schedule management
     setSchedules: (state, action) => {
       state.schedules = action.payload
     },
@@ -664,7 +656,7 @@ export const sportsMeetSlice = createSlice({
       state.schedules = state.schedules.filter(schedule => schedule.id !== action.payload)
     },
     
-    // Group related
+    // 鍒嗙粍鐩稿叧
     setGroups: (state, action) => {
       state.groups = action.payload
     },
@@ -681,7 +673,7 @@ export const sportsMeetSlice = createSlice({
       state.groups = state.groups.filter(group => group.id !== action.payload)
     },
     
-    // Result related
+    // Score management
     setResults: (state, action) => {
       state.results = action.payload
     },
@@ -698,7 +690,7 @@ export const sportsMeetSlice = createSlice({
       state.results = state.results.filter(result => result.id !== action.payload)
     },
     
-    // Referee related
+    // Referee management
     setReferees: (state, action) => {
       state.referees = action.payload
     },
@@ -715,7 +707,7 @@ export const sportsMeetSlice = createSlice({
       state.referees = state.referees.filter(referee => referee.id !== action.payload)
     },
     
-    // Referee assignment related
+    // Referee management
     setRefereeAssignments: (state, action) => {
       state.refereeAssignments = action.payload
     },
@@ -732,7 +724,7 @@ export const sportsMeetSlice = createSlice({
       state.refereeAssignments = state.refereeAssignments.filter(assignment => assignment.id !== action.payload)
     },
     
-    // Venue related
+    // Venue management
     setVenues: (state, action) => {
       state.venues = action.payload
     },
@@ -749,7 +741,7 @@ export const sportsMeetSlice = createSlice({
       state.venues = state.venues.filter(venue => venue.id !== action.payload)
     },
     
-    // Numbering rules configuration
+    // 缂栧彿瑙勫垯閰嶇疆
     setNumberingRules: (state, action) => {
       state.numberingRules = action.payload
     },
@@ -765,8 +757,7 @@ export const sportsMeetSlice = createSlice({
       delete state.numberingRules[action.payload]
     },
     
-    // Loading state management
-    setLoading: (state, action) => {
+    // 鍔犺浇鐘舵€佺鐞?    setLoading: (state, action) => {
       state.loading = action.payload
     },
     setError: (state, action) => {
@@ -775,14 +766,12 @@ export const sportsMeetSlice = createSlice({
     clearError: (state) => {
       state.error = null
     },
-    // Dashboard data management
-    setDashboardData: (state, action) => {
+    // 浠〃鐩樻暟鎹鐞?    setDashboardData: (state, action) => {
       state.dashboardData = action.payload
     }
   },
   extraReducers: (builder) => {
-    // Handle fetch dashboard data
-    builder
+    // 澶勭悊鑾峰彇浠〃鐩樻暟鎹?    builder
       .addCase(fetchDashboardData.pending, (state) => {
         state.loading = true
         state.error = null
@@ -796,8 +785,7 @@ export const sportsMeetSlice = createSlice({
         state.error = action.payload
       })
       
-    // Handle fetch sports meets list
-    builder
+    // 澶勭悊鑾峰彇杩愬姩浼氬垪琛?    builder
       .addCase(fetchSportsMeets.pending, (state) => {
         state.loading = true
         state.error = null
@@ -811,23 +799,21 @@ export const sportsMeetSlice = createSlice({
         state.error = action.payload
       })
       
-    // Handle fetch registration statistics
+    // 澶勭悊鑾峰彇鎶ュ悕缁熻鏁版嵁
     builder
       .addCase(fetchRegistrationStatistics.pending, (state) => {
         state.loading = true
         state.error = null
       })
-      .addCase(fetchRegistrationStatistics.fulfilled, (state) => {
+      .addCase(fetchRegistrationStatistics.fulfilled, (state, action) => {
         state.loading = false
-        // Store statistics data in state as needed
-      })
+        // 鍙互鏍规嵁闇€瑕佸皢缁熻鏁版嵁瀛樺偍鍦╯tate涓?      })
       .addCase(fetchRegistrationStatistics.rejected, (state, action) => {
         state.loading = false
         state.error = action.payload
       })
       
-    // Handle fetch single sports meet detail
-    builder
+    // 澶勭悊鑾峰彇鍗曚釜杩愬姩浼氳鎯?    builder
       .addCase(fetchSportsMeetById.pending, (state) => {
         state.loading = true
         state.error = null
@@ -841,8 +827,7 @@ export const sportsMeetSlice = createSlice({
         state.error = action.payload
       })
       
-    // Handle create sports meet
-    builder
+    // 澶勭悊鍒涘缓杩愬姩浼?    builder
       .addCase(createSportsMeet.pending, (state) => {
         state.loading = true
         state.error = null
@@ -856,8 +841,7 @@ export const sportsMeetSlice = createSlice({
         state.error = action.payload
       })
       
-    // Handle update sports meet
-    builder
+    // 澶勭悊鏇存柊杩愬姩浼?    builder
       .addCase(updateSportsMeetById.pending, (state) => {
         state.loading = true
         state.error = null
@@ -877,8 +861,7 @@ export const sportsMeetSlice = createSlice({
         state.error = action.payload
       })
       
-    // Handle delete sports meet
-    builder
+    // 澶勭悊鍒犻櫎杩愬姩浼?    builder
       .addCase(deleteSportsMeetById.pending, (state) => {
         state.loading = true
         state.error = null
@@ -895,7 +878,7 @@ export const sportsMeetSlice = createSlice({
         state.error = action.payload
       })
       
-    // Handle fetch events list
+    // 澶勭悊鑾峰彇椤圭洰鍒楄〃
     builder
       .addCase(fetchEvents.pending, (state) => {
         state.loading = true
@@ -910,7 +893,7 @@ export const sportsMeetSlice = createSlice({
         state.error = action.payload
       })
       
-    // Handle fetch single event detail
+    // 澶勭悊鑾峰彇鍗曚釜椤圭洰璇︽儏
     builder
       .addCase(fetchEventById.pending, (state) => {
         state.loading = true
@@ -918,14 +901,13 @@ export const sportsMeetSlice = createSlice({
       })
       .addCase(fetchEventById.fulfilled, (state, action) => {
         state.loading = false
-        // Store single event detail in state as needed
-      })
+        // 鍙互鏍规嵁闇€瑕佸皢鍗曚釜椤圭洰璇︽儏瀛樺偍鍦╯tate涓?      })
       .addCase(fetchEventById.rejected, (state, action) => {
         state.loading = false
         state.error = action.payload
       })
       
-    // Handle create event
+    // 澶勭悊鍒涘缓椤圭洰
     builder
       .addCase(createEvent.pending, (state) => {
         state.loading = true
@@ -940,7 +922,7 @@ export const sportsMeetSlice = createSlice({
         state.error = action.payload
       })
       
-    // Handle update event
+    // 澶勭悊鏇存柊椤圭洰
     builder
       .addCase(updateEventById.pending, (state) => {
         state.loading = true
@@ -958,7 +940,7 @@ export const sportsMeetSlice = createSlice({
         state.error = action.payload
       })
       
-    // Handle delete event
+    // 澶勭悊鍒犻櫎椤圭洰
     builder
       .addCase(deleteEventById.pending, (state) => {
         state.loading = true
@@ -973,8 +955,8 @@ export const sportsMeetSlice = createSlice({
         state.error = action.payload
       })
       
-    // Handle registration management related async thunks
-    // Fetch registrations list
+    // 澶勭悊鎶ュ悕绠＄悊鐩稿叧寮傛thunk
+    // 鑾峰彇鎶ュ悕鍒楄〃
     builder
       .addCase(fetchRegistrations.pending, (state) => {
         state.loading = true
@@ -989,7 +971,7 @@ export const sportsMeetSlice = createSlice({
         state.error = action.payload
       })
       
-    // Create registration
+    // 鍒涘缓鎶ュ悕
     builder
       .addCase(createRegistration.pending, (state) => {
         state.loading = true
@@ -1004,7 +986,7 @@ export const sportsMeetSlice = createSlice({
         state.error = action.payload
       })
       
-    // Batch create registrations
+    // 鎵归噺鍒涘缓鎶ュ悕
     builder
       .addCase(batchCreateRegistrations.pending, (state) => {
         state.loading = true
@@ -1019,7 +1001,7 @@ export const sportsMeetSlice = createSlice({
         state.error = action.payload
       })
       
-    // Delete registration
+    // 鍒犻櫎鎶ュ悕
     builder
       .addCase(deleteRegistrationById.pending, (state) => {
         state.loading = true
@@ -1034,24 +1016,22 @@ export const sportsMeetSlice = createSlice({
         state.error = action.payload
       })
       
-    // Fetch pending registrations
-    builder
+    // 鑾峰彇寰呭鏍告姤鍚?    builder
       .addCase(fetchPendingRegistrations.pending, (state) => {
         state.loading = true
         state.error = null
       })
       .addCase(fetchPendingRegistrations.fulfilled, (state, action) => {
         state.loading = false
-        // Store pending registrations separately or use filters parameter to fetch
-        // Here temporarily store them in registrations, adjust as needed
-        state.registrations = action.payload
+        // 鍙互灏嗗緟瀹℃牳鎶ュ悕鍗曠嫭瀛樺偍锛屾垨鑰呬娇鐢╢ilters鍙傛暟鑾峰彇
+        // 杩欓噷鏆傛椂灏嗗叾瀛樺偍鍒皉egistrations涓紝瀹為檯浣跨敤鏃跺彲浠ユ牴鎹渶瑕佽皟鏁?        state.registrations = action.payload
       })
       .addCase(fetchPendingRegistrations.rejected, (state, action) => {
         state.loading = false
         state.error = action.payload
       })
       
-    // Approve registration
+    // 瀹℃牳閫氳繃鎶ュ悕
     builder
       .addCase(approveRegistration.pending, (state) => {
         state.loading = true
@@ -1069,7 +1049,7 @@ export const sportsMeetSlice = createSlice({
         state.error = action.payload
       })
       
-    // Reject registration
+    // 瀹℃牳鎷掔粷鎶ュ悕
     builder
       .addCase(rejectRegistration.pending, (state) => {
         state.loading = true
@@ -1087,8 +1067,8 @@ export const sportsMeetSlice = createSlice({
         state.error = action.payload
       })
     
-    // Handle venue management related async thunks
-    // Fetch venues list
+    // Venue management
+    // 鑾峰彇鍦洪鍒楄〃
     builder
       .addCase(fetchVenues.pending, (state) => {
         state.loading = true
@@ -1103,7 +1083,7 @@ export const sportsMeetSlice = createSlice({
         state.error = action.payload
       })
     
-    // Create venue
+    // 鍒涘缓鍦洪
     builder
       .addCase(createVenue.pending, (state) => {
         state.loading = true
@@ -1118,7 +1098,7 @@ export const sportsMeetSlice = createSlice({
         state.error = action.payload
       })
     
-    // Update venue
+    // 鏇存柊鍦洪
     builder
       .addCase(updateVenueById.pending, (state) => {
         state.loading = true
@@ -1136,7 +1116,7 @@ export const sportsMeetSlice = createSlice({
         state.error = action.payload
       })
     
-    // Delete venue
+    // 鍒犻櫎鍦洪
     builder
       .addCase(deleteVenueById.pending, (state) => {
         state.loading = true
@@ -1151,8 +1131,8 @@ export const sportsMeetSlice = createSlice({
         state.error = action.payload
       })
     
-    // Handle referee management related async thunks
-    // Fetch referees list
+    // Referee management
+    // 鑾峰彇瑁佸垽鍒楄〃
     builder
       .addCase(fetchReferees.pending, (state) => {
         state.loading = true
@@ -1167,7 +1147,7 @@ export const sportsMeetSlice = createSlice({
         state.error = action.payload
       })
     
-    // Create referee
+    // 鍒涘缓瑁佸垽
     builder
       .addCase(createReferee.pending, (state) => {
         state.loading = true
@@ -1182,7 +1162,7 @@ export const sportsMeetSlice = createSlice({
         state.error = action.payload
       })
     
-    // Update referee
+    // 鏇存柊瑁佸垽
     builder
       .addCase(updateRefereeById.pending, (state) => {
         state.loading = true
@@ -1200,7 +1180,7 @@ export const sportsMeetSlice = createSlice({
         state.error = action.payload
       })
     
-    // Delete referee
+    // 鍒犻櫎瑁佸垽
     builder
       .addCase(deleteRefereeById.pending, (state) => {
         state.loading = true
@@ -1215,8 +1195,8 @@ export const sportsMeetSlice = createSlice({
         state.error = action.payload
       })
     
-    // Handle schedule management related async thunks
-    // Fetch schedules list
+    // Schedule management
+    // 鑾峰彇璧涚▼鍒楄〃
     builder
       .addCase(fetchSchedules.pending, (state) => {
         state.loading = true
@@ -1231,7 +1211,7 @@ export const sportsMeetSlice = createSlice({
         state.error = action.payload
       })
     
-    // Create schedule
+    // 鍒涘缓璧涚▼
     builder
       .addCase(createSchedule.pending, (state) => {
         state.loading = true
@@ -1246,7 +1226,7 @@ export const sportsMeetSlice = createSlice({
         state.error = action.payload
       })
     
-    // Update schedule
+    // 鏇存柊璧涚▼
     builder
       .addCase(updateScheduleById.pending, (state) => {
         state.loading = true
@@ -1264,7 +1244,7 @@ export const sportsMeetSlice = createSlice({
         state.error = action.payload
       })
     
-    // Delete schedule
+    // 鍒犻櫎璧涚▼
     builder
       .addCase(deleteScheduleById.pending, (state) => {
         state.loading = true
@@ -1279,8 +1259,8 @@ export const sportsMeetSlice = createSlice({
         state.error = action.payload
       })
     
-    // Handle results management related async thunks
-    // Fetch results list
+    // Score management
+    // 鑾峰彇鎴愮哗鍒楄〃
     builder
       .addCase(fetchResults.pending, (state) => {
         state.loading = true
@@ -1295,7 +1275,7 @@ export const sportsMeetSlice = createSlice({
         state.error = action.payload
       })
     
-    // Create result
+    // 鍒涘缓鎴愮哗
     builder
       .addCase(createResult.pending, (state) => {
         state.loading = true
@@ -1310,7 +1290,7 @@ export const sportsMeetSlice = createSlice({
         state.error = action.payload
       })
     
-    // Update result
+    // 鏇存柊鎴愮哗
     builder
       .addCase(updateResultById.pending, (state) => {
         state.loading = true
@@ -1328,7 +1308,7 @@ export const sportsMeetSlice = createSlice({
         state.error = action.payload
       })
     
-    // Delete result
+    // 鍒犻櫎鎴愮哗
     builder
       .addCase(deleteResultById.pending, (state) => {
         state.loading = true
@@ -1345,28 +1325,26 @@ export const sportsMeetSlice = createSlice({
   }
 })
 
-// Export action creators
+// 瀵煎嚭action creators
 export const {
-  // Sports meet related
-  setSportsMeets,
+  // 杩愬姩浼氱浉鍏?  setSportsMeets,
   addSportsMeet,
   updateSportsMeet,
   deleteSportsMeet,
   setCurrentSportsMeet,
   
-  // Event related
+  // 椤圭洰鐩稿叧
   setEvents,
   addEvent,
   updateEvent,
   deleteEvent,
   
-  // Athlete related
-  setAthletes,
+  // 杩愬姩鍛樼浉鍏?  setAthletes,
   addAthlete,
   updateAthlete,
   deleteAthlete,
   
-  // Registration related
+  // Registration management
   setRegistrations,
   addRegistration,
   batchAddRegistrations,
@@ -1374,55 +1352,53 @@ export const {
   deleteRegistration,
   batchRemoveRegistrations,
   
-  // Schedule related
+  // Schedule management
   setSchedules,
   addSchedule,
   updateSchedule,
   deleteSchedule,
   
-  // Group related
+  // 鍒嗙粍鐩稿叧
   setGroups,
   addGroup,
   updateGroup,
   deleteGroup,
   
-  // Result related
+  // Score management
   setResults,
   addResult,
   updateResult,
   deleteResult,
   
-  // Referee related
+  // Referee management
   setReferees,
   addReferee,
   updateReferee,
   deleteReferee,
   
-  // Referee assignment related
+  // Referee management
   setRefereeAssignments,
   addRefereeAssignment,
   updateRefereeAssignment,
   deleteRefereeAssignment,
   
-  // Venue related
+  // Venue management
   setVenues,
   addVenue,
   updateVenue,
   deleteVenue,
   
-  // Numbering rules configuration
+  // 缂栧彿瑙勫垯閰嶇疆
   setNumberingRules,
   updateNumberingRule,
   addNumberingRule,
   deleteNumberingRule,
   
-  // Loading state management
-  setLoading,
+  // 鍔犺浇鐘舵€佺鐞?  setLoading,
   setError,
   clearError,
-  // Dashboard data management
-  setDashboardData
+  // 浠〃鐩樻暟鎹鐞?  setDashboardData
 } = sportsMeetSlice.actions
 
-// Export reducer
+// 瀵煎嚭reducer
 export default sportsMeetSlice.reducer

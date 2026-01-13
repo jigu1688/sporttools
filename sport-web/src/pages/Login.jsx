@@ -1,11 +1,11 @@
 import { useEffect } from 'react'
-import { Form, Input, Button, Card, Typography, message } from 'antd'
-import { LockOutlined, UserOutlined } from '@ant-design/icons'
-import { useNavigate } from 'react-router-dom'
+import { Form, Input, Button, Card, Typography, message, Divider } from 'antd'
+import { LockOutlined, UserOutlined, CalculatorOutlined } from '@ant-design/icons'
+import { useNavigate, Link } from 'react-router-dom'
 import { useDispatch, useSelector } from 'react-redux'
 import { login, clearError } from '../store/authSlice'
 
-const { Title } = Typography
+const { Title, Text } = Typography
 
 const Login = () => {
   const dispatch = useDispatch()
@@ -69,6 +69,24 @@ const Login = () => {
           <div style={{ textAlign: 'center' }}>
             <p>还没有账号？ <a href="/register">立即注册</a></p>
           </div>
+          
+          <Divider style={{ margin: '16px 0' }}>
+            <Text type="secondary" style={{ fontSize: 12 }}>快捷工具</Text>
+          </Divider>
+          
+          <Link to="/calculator">
+            <Button 
+              icon={<CalculatorOutlined />} 
+              block
+              style={{ 
+                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                border: 'none',
+                color: '#fff'
+              }}
+            >
+              体测成绩计算器（无需登录）
+            </Button>
+          </Link>
         </Form>
       </Card>
     </div>

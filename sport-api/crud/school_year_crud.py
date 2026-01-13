@@ -18,8 +18,12 @@ class SchoolYearCRUD:
         return db.query(SchoolYear).options(noload('*')).filter(SchoolYear.id == school_year_id).first()
     
     @staticmethod
-    def get_school_year_by_academic_year(db: Session, academic_year: str) -> SchoolYear:
-        return db.query(SchoolYear).filter(SchoolYear.academic_year == academic_year).first()
+    def get_school_year_by_academic_year(db: Session, academic_year: str, school_id: int = None) -> SchoolYear:
+        """根据学年标识查询学年，可选按学校过滤"""
+        query = db.query(SchoolYear).filter(SchoolYear.academic_year == academic_year)
+        if school_id is not None:
+            query = query.filter(SchoolYear.school_id == school_id)
+        return query.first()
     
     @staticmethod
     def get_active_school_year(db: Session, school_id: int = None) -> SchoolYear:

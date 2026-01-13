@@ -187,7 +187,6 @@ async def get_student_classes(student_id: int, db: Session = Depends(get_db), cu
 async def assign_student_to_class(
     student_id: int,
     class_id: int,
-    academic_year: str,
     join_date: Optional[str] = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
@@ -197,7 +196,6 @@ async def assign_student_to_class(
     
     - student_id: 学生ID
     - class_id: 班级ID
-    - academic_year: 学年
     - join_date: 加入日期（可选，默认为今天）
     """
     try:
@@ -222,7 +220,7 @@ async def assign_student_to_class(
         
         # 分配到班级
         success = student_crud.assign_student_to_class(
-            db, student_id, class_id, academic_year, join_date_obj
+            db, student_id, class_id, join_date_obj
         )
         
         if not success:
@@ -239,7 +237,6 @@ async def assign_student_to_class(
 async def remove_student_from_class(
     student_id: int,
     class_id: int,
-    academic_year: str,
     leave_date: Optional[str] = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
@@ -249,7 +246,6 @@ async def remove_student_from_class(
     
     - student_id: 学生ID
     - class_id: 班级ID
-    - academic_year: 学年
     - leave_date: 离开日期（可选，默认为今天）
     """
     try:
@@ -264,7 +260,7 @@ async def remove_student_from_class(
         
         # 从班级中移除
         success = student_crud.remove_student_from_class(
-            db, student_id, class_id, academic_year, leave_date_obj
+            db, student_id, class_id, leave_date_obj
         )
         
         if not success:
